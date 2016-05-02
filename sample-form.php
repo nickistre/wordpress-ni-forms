@@ -59,9 +59,8 @@ class SampleForm {
         wp_register_script('jquery-blockui', plugins_url('js/vendor/jquery.blockUI.js', __FILE__), array('jquery'));
         wp_register_script('sample-form', plugins_url('js/form.js', __FILE__), array('jquery', 'jquery-ui-dialog', 'jquery-ajaxform', 'jquery-blockui'));
 
-        // Get style
-        // TODO: rewrite to have this load as needed, rather than always
-        wp_enqueue_style('wp-jquery-ui-dialog');
+        // Setup styles
+        wp_register_style('sample-form', plugins_url('css/form.css', __FILE__), array('wp-jquery-ui-dialog'));
     }
 
     /**
@@ -164,6 +163,7 @@ class SampleForm {
         // Add javascript code for ajax and/or honeypot
         if (!$disable_ajax) {
             wp_enqueue_script('sample-form');
+            wp_enqueue_style('sample-form');
 
             $output .= "
 <script>
