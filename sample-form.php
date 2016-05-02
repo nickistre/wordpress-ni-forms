@@ -67,7 +67,7 @@ class SampleForm {
     /**
      * Processes and sets up the form from the shortcode input
      *
-     * Any $atts value not used in this method will be passed through to the
+     * Any $atts values not used in this method will be passed through to the
      * form as a tag.
      *
      * @param array $atts
@@ -91,6 +91,7 @@ class SampleForm {
         if (empty($atts['id'])) {
             // Can't use random ID in case of page caching
             global $post;
+            // TODO: Make sure post exists and is an object
             $atts['id'] = 'sf-'.md5(var_export($atts, true).$content.$tag.$post->ID);
         }
 
@@ -218,7 +219,7 @@ class SampleForm {
 /**
  * Class SampleForm_ProcessorAbstract
  *
- * Base class for form processors used by the main SampleForm class to handle
+ * Interface for form processors used by the main SampleForm class to handle
  * form results.
  */
 interface SampleForm_ProcessorInterface {
