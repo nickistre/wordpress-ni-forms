@@ -24,10 +24,13 @@ class SampleForm {
     static private $form_processors = array();
 
     /**
+     * Registers a processor instance with a given code.
      *
+     * This allows for custom form processors to be created and used by
+     * forms.  The code is referenced via the "form-processor" attribute.
      *
-     * @param $code
-     * @param $className
+     * @param string $code
+     * @param SampleForm_ProcessorInterface $processor
      */
     static public function register_form_processor($code, SampleForm_ProcessorInterface $processor) {
         self::$form_processors[$code] = $processor;
@@ -37,7 +40,7 @@ class SampleForm {
      * @param $code
      * @return SampleForm_ProcessorInterface
      *
-     * @todo Check if code actuall exists in the array and handle the error
+     * @todo Check if code actually exists in the array and handle the error
      */
     static protected function get_form_processor($code) {
         return self::$form_processors[$code];
@@ -46,7 +49,8 @@ class SampleForm {
     /**
      * SampleForm constructor.
      *
-     * Sets up shortcode and any other configuration needed by the plugin
+     * Sets up shortcode, ajax management, and any other configuration needed 
+     * by the plugin
      */
     public function __construct()
     {
@@ -75,13 +79,12 @@ class SampleForm {
      *
      * @return string
      *
-     * @todo This is a stub that simply returns the form (with provided atts)
-     *   back
      */
     public function shortcode($atts, $content, $tag)
     {
         // Process form in case submitted via standard submit.
-        $this->process_form();
+        // TODO: Do something with the process_result, like showing error or success message
+        $process_result = $this->process_form();
 
         // Check through attributes
 
@@ -185,6 +188,13 @@ class SampleForm {
 
     /**
      * Processes the given form data.
+     *
+     * This form returns some info back in an array if it attempted to process
+     * the form.
+     *
+     * @return array|null
+     *
+     * @todo Validate the form based on the tags used in form elements (I.E. "required" or "type='email'")
      */
     public function process_form() {
         // TODO: Setup ways to register and create new ways to process form
@@ -196,20 +206,29 @@ class SampleForm {
 
             $process_message = $process_result ? $_POST['_success-message'] : $_POST['_error-message'];
 
+            $return = array(
+                'process_result' => $process_result,
+                'process_message' => $process_message,
+                'submitted_form_values' => $_POST // This is for debugging
+            );
+
             if ($_POST['_submit-style'] = 'ajax') {
-                echo wp_json_encode(array(
-                    'process_result' => $process_result,
-                    'process_message' => $process_message,
-                    'submitted_form_values' => $_POST // This is for debugging
-                ));
+                echo wp_json_encode($return);
                 wp_die();
             }
             else {
-                // TODO: Handle when not 'ajax' submit
+                return $return;
             }
         }
+
+        return null;
     }
 
+    /**
+     * Retrieves the url to post to for the ajax call.
+     *
+     * @return string
+     */
     protected function actionUrl() {
         $actionUrl = admin_url('admin-ajax.php') . '?' . http_build_query(array('action' => 'sampleform_process'));
         return $actionUrl;
@@ -241,6 +260,9 @@ interface SampleForm_ProcessorInterface {
  * Class SampleForm_Processor_Null
  *
  * Initial processor that does nothing with the results, for now.
+ *
+ * This class can be used as a basic template to send the form data to an
+ * email, database table, or to send to an API.
  */
 class SampleForm_Processor_Null implements SampleForm_ProcessorInterface {
     /**
@@ -259,5 +281,5 @@ class SampleForm_Processor_Null implements SampleForm_ProcessorInterface {
 // Register null form processor
 SampleForm::register_form_processor('null', new SampleForm_Processor_Null());
 
-// Setup sampleForm instance
+// Setup sampleForm instance to initialize plugin.
 $sampleForm = new SampleForm();

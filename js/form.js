@@ -1,5 +1,7 @@
 /**
  * Created by nick on 4/30/16.
+ *
+ * All code handing form in javascript should be in this file
  */
 
 var SampleForm = SampleForm || {};
@@ -16,8 +18,9 @@ SampleForm.Form = function(formId) {
 /**
  * Setup form to submit using AjaxForm jQuery plugin
  * @param targetUrl
+ * @param formData
  */
-SampleForm.Form.prototype.setupAjaxForm = function(targetUrl, formData, successMessage, errorMessage) {
+SampleForm.Form.prototype.setupAjaxForm = function(targetUrl, formData) {
     // console.log('formId: ', this.formId);
     // console.log('targetUrl: ', targetUrl);
     // console.log('formData: ', formData);
