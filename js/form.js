@@ -4,14 +4,14 @@
  * All code handing form in javascript should be in this file
  */
 
-var SampleForm = SampleForm || {};
+var NIForm = NIForm || {};
 
 /**
  * This class handles all the javascript code to handle for a form.
  * @param formId The ID of the form to work with.
  * @constructor
  */
-SampleForm.Form = function(formId) {
+NIForm.Form = function(formId) {
     this.formId = formId;
 };
 
@@ -20,7 +20,7 @@ SampleForm.Form = function(formId) {
  * @param targetUrl
  * @param formData
  */
-SampleForm.Form.prototype.setupAjaxForm = function(targetUrl, formData) {
+NIForm.Form.prototype.setupAjaxForm = function(targetUrl, formData) {
     // console.log('formId: ', this.formId);
     // console.log('targetUrl: ', targetUrl);
     // console.log('formData: ', formData);

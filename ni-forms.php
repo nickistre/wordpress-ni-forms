@@ -1,9 +1,8 @@
 <?php
 /**
- * Plugin Name: Sample Form
- * Description: A sample plugin for setting up a form that submits it values
- * via an AJAX call.
- * Version: 0.1
+ * Plugin Name: NI Forms
+ * Description: A base forms plugin for building AJAX-style submitting forms.
+ * Version: 0.2
  * Author: Nicholas Istre
  *
  * Created by IntelliJ IDEA.
@@ -13,11 +12,11 @@
  */
 
 /**
- * Class SampleForm
+ * Class NIForm
  *
  * Main class to manage forms
  */
-class SampleForm {
+class NIForms {
     /**
      * @var array
      */
@@ -47,24 +46,24 @@ class SampleForm {
     }
 
     /**
-     * SampleForm constructor.
+     * NIForm constructor.
      *
      * Sets up shortcode, ajax management, and any other configuration needed 
      * by the plugin
      */
     public function __construct()
     {
-        add_shortcode('sample-form', array($this, 'shortcode'));
-        add_action('wp_ajax_sampleform_process', array($this, 'process_form'));
-        add_action('wp_ajax_nopriv_sampleform_process', array($this, 'process_form'));
+        add_shortcode('ni-form', array($this, 'shortcode'));
+        add_action('wp_ajax_niform_process', array($this, 'process_form'));
+        add_action('wp_ajax_nopriv_niform_process', array($this, 'process_form'));
 
         // Setup scripts
         wp_register_script('jquery-ajaxform', plugins_url('js/vendor/jquery.form.min.js', __FILE__), array('jquery'));
         wp_register_script('jquery-blockui', plugins_url('js/vendor/jquery.blockUI.js', __FILE__), array('jquery'));
-        wp_register_script('sample-form', plugins_url('js/form.js', __FILE__), array('jquery', 'jquery-ui-dialog', 'jquery-ajaxform', 'jquery-blockui'));
+        wp_register_script('ni-forms', plugins_url('js/form.js', __FILE__), array('jquery', 'jquery-ui-dialog', 'jquery-ajaxform', 'jquery-blockui'));
 
         // Setup styles
-        wp_register_style('sample-form', plugins_url('css/form.css', __FILE__), array('wp-jquery-ui-dialog'));
+        wp_register_style('ni-forms', plugins_url('css/form.css', __FILE__), array('wp-jquery-ui-dialog'));
     }
 
     /**
@@ -165,17 +164,17 @@ class SampleForm {
 
         // Add javascript code for ajax and/or honeypot
         if (!$disable_ajax) {
-            wp_enqueue_script('sample-form');
-            wp_enqueue_style('sample-form');
+            wp_enqueue_script('ni-forms');
+            wp_enqueue_style('ni-forms');
 
             $output .= "
 <script>
     jQuery(document).ready(function() {
         var formId = ".wp_json_encode($atts['id']).";
         var actionUrl = ".wp_json_encode($this->actionUrl()).";
-        var formData = ".wp_json_encode(array('_submit-style' => 'ajax')).";
+        var formData = ".wp_json_encode(array('_submit-style' => 'ajax')). ";
         
-        var form = new SampleForm.Form(formId);
+        var form = new NIForm.Form(formId);
         
         form.setupAjaxForm(actionUrl, formData);
     });
@@ -230,7 +229,7 @@ class SampleForm {
      * @return string
      */
     protected function actionUrl() {
-        $actionUrl = admin_url('admin-ajax.php') . '?' . http_build_query(array('action' => 'sampleform_process'));
+        $actionUrl = admin_url('admin-ajax.php') . '?' . http_build_query(array('action' => 'niform_process'));
         return $actionUrl;
     }
 }
@@ -238,7 +237,7 @@ class SampleForm {
 /**
  * Class SampleForm_ProcessorAbstract
  *
- * Interface for form processors used by the main SampleForm class to handle
+ * Interface for form processors used by the main NIForm class to handle
  * form results.
  */
 interface SampleForm_ProcessorInterface {
@@ -279,7 +278,7 @@ class SampleForm_Processor_Null implements SampleForm_ProcessorInterface {
 }
 
 // Register null form processor
-SampleForm::register_form_processor('null', new SampleForm_Processor_Null());
+NIForms::register_form_processor('null', new SampleForm_Processor_Null());
 
 // Setup sampleForm instance to initialize plugin.
-$sampleForm = new SampleForm();
+$sampleForm = new NIForms();
