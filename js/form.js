@@ -39,6 +39,7 @@ NIForm.Form.prototype.setupAjaxForm = function(targetUrl, formData) {
 
             if (responseData.process_result) {
                 if (responseData.process_message) {
+                    // TODO: Check if messaging container in form and use that if it exists
                     jQuery('<div>'+responseData.process_message+'</div>').dialog({
                         position: {
                             my: "center",
@@ -59,6 +60,10 @@ NIForm.Form.prototype.setupAjaxForm = function(targetUrl, formData) {
                             }
                         }
                     });
+                }
+                else {
+                    // No message to show, just unblock the form.
+                    jQuery(formSel).unblock();
                 }
             }
         },
