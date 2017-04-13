@@ -11,6 +11,7 @@
  * Time: 11:00 AM
  */
 
+
 /**
  * Class NIForm
  *
@@ -44,6 +45,53 @@ class NIForms {
     static protected function get_form_processor($code) {
         return self::$form_processors[$code];
     }
+
+
+    /**
+     * Default success message if none was set in the tag.
+     * @var string
+     */
+    static private $default_success_message = 'Form submit was successfull.';
+
+    /**
+     * @return string
+     */
+    public static function getDefaultSuccessMessage()
+    {
+        return self::$default_success_message;
+    }
+
+    /**
+     * @param string $default_success_message
+     */
+    public static function setDefaultSuccessMessage($default_success_message)
+    {
+        self::$default_success_message = $default_success_message;
+    }
+
+
+    /**
+     * Default failure message if none was set in the tag.
+     * @var string
+     */
+    static private $default_failure_message = 'Form submit failed.';
+
+    /**
+     * @return string
+     */
+    public static function getDefaultFailureMessage()
+    {
+        return self::$default_failure_message;
+    }
+
+    /**
+     * @param string $default_failure_message
+     */
+    public static function setDefaultFailureMessage($default_failure_message)
+    {
+        self::$default_failure_message = $default_failure_message;
+    }
+
 
     /**
      * NIForm constructor.
@@ -115,7 +163,7 @@ class NIForms {
             unset($atts['success-message']);
         }
         else {
-            $success_message = null;
+            $success_message = self::getDefaultSuccessMessage();
         }
 
         if (!empty($atts['error-message'])) {
@@ -123,7 +171,7 @@ class NIForms {
             unset($atts['error-message']);
         }
         else {
-            $error_message = null;
+            $error_message = self::getDefaultFailureMessage();
         }
 
 
