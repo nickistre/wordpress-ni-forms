@@ -51,7 +51,7 @@ class NIForms {
      * Default success message if none was set in the tag.
      * @var string
      */
-    static private $default_success_message = 'Form submit was successfull.';
+    static private $default_success_message = null;
 
     /**
      * @return string
@@ -141,7 +141,7 @@ class NIForms {
             // Can't use random ID in case of page caching
             global $post;
             // TODO: Make sure post exists and is an object
-            $atts['id'] = 'sf-'.md5(var_export($atts, true).$content.$tag.$post->ID);
+            $atts['id'] = 'nif'.md5(var_export($atts, true).$content.$tag.$post->ID);
         }
 
         // 'method' should default to POST
@@ -158,6 +158,7 @@ class NIForms {
         // TODO: check that given processor code is registered in class
 
         // Get any status messages from the plugin
+        // TODO: Store messages in session instead of within form?
         if (!empty($atts['success-message'])) {
             $success_message = $atts['success-message'];
             unset($atts['success-message']);
@@ -196,6 +197,8 @@ class NIForms {
         $hidden_fields['_form-processor'] = $atts['form-processor'];
         if (!empty($success_message)) {
             $hidden_fields['_success-message'] = $success_message;
+        }
+        if (!empty($error_message)) {
             $hidden_fields['_error-message'] = $error_message;
         }
         unset ($atts['form-processor']);
@@ -251,7 +254,12 @@ class NIForms {
 
             $process_result = $form_processor->process($_POST);
 
-            $process_message = $process_result ? $_POST['_success-message'] : $_POST['_error-message'];
+            if ($process_result) {
+                $process_message = isset($_POST['_success-message']) ? $_POST["_success-message"] : null;
+            }
+            else {
+                $process_message = isset($_POST['_error-message']) ? $_POST['_error-messag'] : null;
+            }
 
             $return = array(
                 'process_result' => $process_result,
