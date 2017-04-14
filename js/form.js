@@ -38,6 +38,14 @@ NIForm.Form.prototype.setupAjaxForm = function(targetUrl, formData) {
             // console.log(arguments);
 
             if (responseData.process_result) {
+                if (responseData.redirect_url) {
+                    window.location.href = responseData.redirect_url;
+                }
+
+                if (responseData.replace_html) {
+                    jQuery(formSel).html(responseData.replace_html);
+                }
+
                 if (responseData.process_message) {
                     // TODO: Check if messaging container in form and use that if it exists
                     jQuery('<div>'+responseData.process_message+'</div>').dialog({
@@ -78,6 +86,4 @@ NIForm.Form.prototype.setupAjaxForm = function(targetUrl, formData) {
     };
 
     jQuery(formSel).ajaxForm(formOptions);
-
-    // console.log('Complete setupAjaxForm');
 };

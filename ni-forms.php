@@ -12,6 +12,10 @@
  */
 
 
+require_once __DIR__.'/NIForms/ProcessorResponse/HTML.php';
+require_once __DIR__.'/NIForms/ProcessorResponse/Redirect.php';
+
+
 /**
  * Class NIForm
  *
@@ -30,15 +34,19 @@ class NIForms {
      * forms.  The code is referenced via the "form-processor" attribute.
      *
      * @param string $code
-     * @param SampleForm_ProcessorInterface $processor
+     * @param NIForm_ProcessorAbstract $processor
      */
-    static public function register_form_processor($code, SampleForm_ProcessorInterface $processor) {
+    static public function register_form_processor($code, NIForm_ProcessorAbstract $processor) {
         self::$form_processors[$code] = $processor;
     }
 
+
+
+
+
     /**
      * @param $code
-     * @return SampleForm_ProcessorInterface
+     * @return NIForm_ProcessorAbstract
      *
      * @todo Check if code actually exists in the array and handle the error
      */
@@ -112,6 +120,16 @@ class NIForms {
 
         // Setup styles
         wp_register_style('ni-forms', plugins_url('css/form.css', __FILE__), array('wp-jquery-ui-dialog'));
+    }
+
+    /**
+     * Loads plugin data from the plugins/ folder in the system.
+     */
+    public function load_plugins() {
+        // This is probably dangerous, but hey, need to load all plugins from the plugins/ directory...
+        foreach (glob(__DIR__.'/plugins/*.php') as $plugin_file) {
+            include_once $plugin_file;
+        }
     }
 
     /**
@@ -254,7 +272,22 @@ class NIForms {
 
             $process_result = $form_processor->process($_POST);
 
-            if ($process_result) {
+            // Initialize variables with defaults
+            $process_message = null;
+            $replace_html = null;
+            $redirect_url = null;
+
+            if (is_string($process_result)) {
+                $process_message = $process_result;
+            }
+            elseif ($process_result instanceof \NIForms\ProcessorResponse\HTML) {
+                $replace_html = $process_result->new_html;
+                $process_message = $process_result->popup_message;
+            }
+            elseif ($process_result instanceof \NIForms\ProcessorResponse\Redirect) {
+                $redirect_url = $process_result->url;
+            }
+            elseif ($process_result) {
                 $process_message = isset($_POST['_success-message']) ? $_POST["_success-message"] : null;
             }
             else {
@@ -264,6 +297,8 @@ class NIForms {
             $return = array(
                 'process_result' => $process_result,
                 'process_message' => $process_message,
+                'replace_html' => $replace_html,
+                'redirect_url' => $redirect_url,
                 'submitted_form_values' => $_POST // This is for debugging
             );
 
@@ -291,12 +326,12 @@ class NIForms {
 }
 
 /**
- * Class SampleForm_ProcessorAbstract
+ * Class NIForm_ProcessorAbstract
  *
  * Interface for form processors used by the main NIForm class to handle
  * form results.
  */
-interface SampleForm_ProcessorInterface {
+interface NIForm_ProcessorAbstract {
     /**
      * Processes the values from the form.
      *
@@ -306,35 +341,12 @@ interface SampleForm_ProcessorInterface {
      * @param $attr
      * @param $content
      * @param $tag
-     * @return boolean
+     * @return boolean|string|\NIForms\ProcessorResponse\HTML
      */
     public function process(array $form_values);
 }
 
-/**
- * Class SampleForm_Processor_Null
- *
- * Initial processor that does nothing with the results, for now.
- *
- * This class can be used as a basic template to send the form data to an
- * email, database table, or to send to an API.
- */
-class SampleForm_Processor_Null implements SampleForm_ProcessorInterface {
-    /**
-     * This does nothing and simply returns true.
-     *
-     * @param array $form_values
-     * @return bool
-     */
-    public function process(array $form_values)
-    {
-        // Just return true!
-        return true;
-    }
-}
-
-// Register null form processor
-NIForms::register_form_processor('null', new SampleForm_Processor_Null());
-
 // Setup sampleForm instance to initialize plugin.
 $sampleForm = new NIForms();
+$sampleForm->load_plugins();
+
