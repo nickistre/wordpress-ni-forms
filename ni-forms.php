@@ -145,7 +145,7 @@ class NIForms {
      * @return string
      *
      */
-    public function shortcode($atts, $content, $tag)
+    public function shortcode(array $atts, $content, $tag)
     {
         // Process form in case submitted via standard submit.
         // TODO: Do something with the process_result, like showing error or success message
