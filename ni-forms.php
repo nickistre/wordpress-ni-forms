@@ -4,11 +4,14 @@
  * Description: A base forms plugin for building AJAX-style submitting forms.
  * Version: 0.2
  * Author: Nicholas Istre
+ * GitHub Plugin URI: https://github.com/nickistre/wordpress-ni-forms
  *
  * Created by IntelliJ IDEA.
  * User: nick
  * Date: 4/25/16
  * Time: 11:00 AM
+ *
+ * Use https://github.com/afragen/github-updater for updating of this plugin from github repo directly.
  */
 
 
