@@ -2,7 +2,7 @@
 /**
  * Plugin Name: NI Forms
  * Description: A base forms plugin for building AJAX-style submitting forms.
- * Version: 0.2.2
+ * Version: 0.2.3
  * Author: Nicholas Istre
  * GitHub Plugin URI: https://github.com/nickistre/wordpress-ni-forms
  *
