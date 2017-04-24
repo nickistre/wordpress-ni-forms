@@ -25,6 +25,20 @@ NIForm.Form.prototype.setupAjaxForm = function(targetUrl, formData) {
     // console.log('targetUrl: ', targetUrl);
     // console.log('formData: ', formData);
 
+    // Setup blockUI defaults
+    jQuery.blockUI.defaults.css = {
+        padding:	0,
+        margin:		0,
+        width:		'30%',
+        top:		'40%',
+        left:		'35%',
+        textAlign:	'center',
+        color:		'#fff',
+        border:		'none',
+        backgroundColor:'rgba(0, 0, 0, .5)',
+        cursor:		'wait'
+    };
+
     var formSel = '#'+this.formId;
     var formOptions = {
         data: formData,
