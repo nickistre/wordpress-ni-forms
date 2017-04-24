@@ -45,6 +45,19 @@ class NIForms {
         self::$form_processors[$code] = $processor;
     }
 
+    static protected function has_form_processor($code) {
+        if (array_key_exists($code, self::$form_processors)) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+
+    static protected function get_all_processor_codes() {
+        return array_keys(self::$form_processors);
+    }
+
     /**
      * @param $code
      * @return NIForm_ProcessorAbstract
@@ -240,7 +253,10 @@ class NIForms {
             $atts['form-processor'] = 'null';
         }
 
-        // TODO: check that given processor code is registered in class
+        // Check that given processor code is registered in class
+        if (!self::has_form_processor($atts['form-processor'])) {
+            trigger_error(sprintf('Unregistered form code "%1$s"; available form processor codes: %2$s', $atts['form-processor'], implode(', ', self::get_all_processor_codes())), E_USER_ERROR);
+        }
 
         // Get any status messages from the plugin
         // TODO: Store messages in session instead of within form?
