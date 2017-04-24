@@ -23,6 +23,8 @@ require_once __DIR__.'/NIForms/ProcessorResponse/Redirect.php';
  * Class NIForm
  *
  * Main class to manage forms
+ *
+ * @todo Add validation code (default to HTML5 validation checking)
  */
 class NIForms {
     /**
@@ -43,10 +45,6 @@ class NIForms {
         self::$form_processors[$code] = $processor;
     }
 
-
-
-
-
     /**
      * @param $code
      * @return NIForm_ProcessorAbstract
@@ -55,6 +53,68 @@ class NIForms {
      */
     static protected function get_form_processor($code) {
         return self::$form_processors[$code];
+    }
+
+    /**
+     * Constant for event to run before the form itself is generated.  Can be used to add hidden fields and
+     * Javascript handling to the form.
+     */
+    const HANDLER_PREFORM = 'preform';
+
+    /**
+     * Constant for event to run before the process functionality is started.  Can be used to add functionality
+     * that must run before the processing system is initiated.
+     */
+    const HANDLER_PREPROCESS = 'preprocess';
+
+    /**
+     * Constant for event to run after the processing functionality is completed.  Can be used for logging
+     * functionality after processing was completed.
+     */
+    const HANDLER_POSTPROCESS = 'postprocess';
+
+    /**
+     * @var array
+     *
+     * Handlers for where custom code can be injected.
+     */
+    static private $event_handlers = array(
+        self::HANDLER_PREFORM => array(),
+        self::HANDLER_PREPROCESS => array(),
+        self::HANDLER_POSTPROCESS => array(),
+    );
+
+    static public function addHandler($event, $function) {
+        if (!array_key_exists($event, self::$event_handlers)) {
+            trigger_error(sprintf('Invalid event "%1$s".  Valid event are: %2$s', implode(', ', $event, array_keys(self::$event_handlers))), E_USER_ERROR);
+        }
+
+        if (!is_callable($function)) {
+            trigger_error('Value passed for $function parameter is not callable.', E_USER_ERROR);
+        }
+
+        self::$event_handlers[] = $function;
+    }
+
+    static protected function runHandlers($event, $param_arr) {
+        if (!array_key_exists($event, self::$event_handlers)) {
+            trigger_error(sprintf('Invalid event "%1$s".  Valid event are: %2$s', implode(', ', $event, array_keys(self::$event_handlers))), E_USER_ERROR);
+        }
+
+        $handlers = self::$event_handlers[$event];
+        assert(is_array($handlers));
+        foreach ($handlers as $handler) {
+            assert(is_callable($handler));
+            $return = call_user_func_array($handler, $param_arr);
+
+            // If any handler returns false, stop running?
+            if ($return === false) {
+                return false;
+            }
+        }
+
+        // If we got here, return true.
+        return true;
     }
 
 
@@ -116,6 +176,10 @@ class NIForms {
         add_action('wp_ajax_niform_process', array($this, 'process_form'));
         add_action('wp_ajax_nopriv_niform_process', array($this, 'process_form'));
 
+        add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
+    }
+
+    public function enqueue_scripts() {
         // Setup scripts
         wp_register_script('jquery-ajaxform', plugins_url('js/vendor/jquery.form.min.js', __FILE__), array('jquery'));
         wp_register_script('jquery-blockui', plugins_url('js/vendor/jquery.blockUI.js', __FILE__), array('jquery'));
@@ -258,6 +322,60 @@ class NIForms {
     }
 
     /**
+     * @var bool
+     *
+     * Used to indicate if the post has been cached by the current instance
+     */
+    private $post_cached = false;
+
+    /**
+     * @var null|array
+     *
+     * Holds the current post status.  This can be changed by handlers so that it changes the process_form input.
+     */
+    private $current_post = null;
+
+    /**
+     * Retrieves the "current" post array.  Form pre-process handlers may change or set values using other methods.
+     * @return array|null
+     *
+     */
+    public function getPost()
+    {
+        if (!$this->post_cached) {
+            $this->current_post = $_POST;
+            $this->post_cached = true;
+        }
+
+        return $this->current_post;
+    }
+
+    /**
+     * Will reset the current_post to $_POST
+     */
+    public function resetPost()
+    {
+        $this->post_cached = false;
+    }
+
+    public function hasPostKey($key)
+    {
+        $post = $this->getPost();
+        return is_array($post) && array_key_exists($key, $post);
+    }
+
+    public function getPostValue($key)
+    {
+        if ($this->hasPostKey($key)) {
+            $post = $this->getPost();
+            return $post[$key];
+        }
+        else {
+            return null;
+        }
+    }
+
+    /**
      * Processes the given form data.
      *
      * This form returns some info back in an array if it attempted to process
@@ -270,7 +388,7 @@ class NIForms {
     public function process_form() {
         // TODO: Setup ways to register and create new ways to process form
 
-        if ($_POST) {
+        if ($this->getPost()) {
             $form_processor = self::get_form_processor($_POST['_form-processor']);
 
             $process_result = $form_processor->process($_POST);
