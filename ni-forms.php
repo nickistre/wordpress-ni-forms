@@ -468,10 +468,7 @@ class NIForms
      */
     protected function check_if_ajax()
     {
-        if (defined('DOING_AJAX') && DOING_AJAX) {
-            return true;
-        }
-        return false;
+        return wp_doing_ajax();
     }
 
     static protected function has_form_processor($code)
