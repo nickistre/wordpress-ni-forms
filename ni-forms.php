@@ -18,7 +18,6 @@
 require_once __DIR__ . '/NIForms/ProcessorResponse/HTML.php';
 require_once __DIR__ . '/NIForms/ProcessorResponse/Redirect.php';
 
-
 /**
  * Class NIForm_ProcessorAbstract
  *
@@ -197,28 +196,27 @@ class NIForms
      * Any $atts values not used in this method will be passed through to the
      * form as a tag.
      *
-     * @param array $atts
+     * @param array|null $atts
      * @param string $content
      * @param string $tag
      *
      * @return string
      *
      */
-    public function shortcode(array $atts, $content, $tag)
+    public function shortcode($atts, $content, $tag)
     {
-        // Process form in case submitted via standard submit.
-        // TODO: Do something with the process_result, like showing error or success message
-        $process_result = $this->process_form();
-
         // Check through attributes
 
         // 'id' attribute is required for later code, if not exist, generate one
-        // For best results, this ID should be unique to the whole site
+        // For best results, this ID should be unique to the whole site for this form
         if (empty($atts['id'])) {
-            // Can't use random ID in case of page caching
-            global $post;
-            // TODO: Make sure post exists and is an object
-            $atts['id'] = 'nif' . md5(var_export($atts, true) . $content . $tag . $post->ID);
+            $atts['id'] = $this->generate_form_id($atts, $content, $tag);
+        }
+
+        // Process form in case submitted via standard submit.
+        if ($this->check_for_processing($atts['id'])) {
+            // TODO: Do something with the process_result, like showing error or success message
+            $process_result = $this->process_form();
         }
 
         // 'method' should default to POST
@@ -227,15 +225,26 @@ class NIForms
         }
 
         // Require a form processor.  If missing, use "null"
-        if (empty($atts['form-processor'])) {
-            trigger_error('"form-processor" tag missing!  Using "null" processor as default.', E_USER_WARNING);
-            $atts['form-processor'] = 'null';
+        $form_processor = 'null';
+        if (array_key_exists('processor', $atts)) {
+            $form_processor = $atts['processor'];
+        } else {
+            if (array_key_exists('form-processor', $atts)) {
+                $form_processor = $atts['form-processor'];
+                trigger_error('"form-processor" attribute deprecated. Use "processor" instead', E_USER_DEPRECATED);
+            } else {
+                trigger_error('"processor" tag missing!  Using "null" processor as default.', E_USER_WARNING);
+                $form_processor = 'null';
+            }
         }
+        unset($atts['processor']);
+        unset($atts['form-processor']);
+
 
         // Check that given processor code is registered in class
-        if (!self::has_form_processor($atts['form-processor'])) {
+        if (!self::has_form_processor($form_processor)) {
             trigger_error(sprintf('Unregistered form code "%1$s"; available form processor codes: %2$s',
-                $atts['form-processor'], implode(', ', self::get_all_processor_codes())), E_USER_ERROR);
+                $form_processor, implode(', ', self::get_all_processor_codes())), E_USER_ERROR);
         }
 
         // Get any status messages from the plugin
@@ -273,14 +282,13 @@ class NIForms
         $hidden_fields['_form-id'] = $atts['id'];
 
         // TODO: The following is probably better stored on the server, but for now, this will work.
-        $hidden_fields['_form-processor'] = $atts['form-processor'];
+        $hidden_fields['_form-processor'] = $form_processor;
         if (!empty($success_message)) {
             $hidden_fields['_success-message'] = $success_message;
         }
         if (!empty($error_message)) {
             $hidden_fields['_error-message'] = $error_message;
         }
-        unset ($atts['form-processor']);
 
 
         // Generate html for hidden fields.
@@ -314,6 +322,78 @@ class NIForms
         }
 
         return $output;
+    }
+
+    /**
+     * Generates a form id based on the entered information.
+     *
+     * @param $atts
+     * @param $content
+     * @param $tag
+     * @return string
+     */
+    protected function generate_form_id($atts, $content, $tag)
+    {
+        // Can't use random ID in case of page caching
+        global $post;
+        // TODO: Make sure post exists and is an object
+        $post_id = $post instanceof WP_Post ? $post->ID : "";
+        $id = 'nif' . md5(var_export($atts, true) . $content . $tag . $post_id);
+
+        return $id;
+    }
+
+    /**
+     * Check if there's a post for the current form, for the given $form_id.
+     *
+     * @param $form_id
+     * @return boolean
+     */
+    protected function check_for_processing($form_id)
+    {
+        $post_form_id = $this->getPostValue('_form-id');
+        if ($post_form_id == $form_id) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public function getPostValue($key)
+    {
+        if ($this->hasPostKey($key)) {
+            $post = $this->getPost();
+            return $post[$key];
+        } else {
+            return null;
+        }
+    }
+
+    public function hasPostKey($key)
+    {
+        $post = $this->getPost();
+        return is_array($post) && array_key_exists($key, $post);
+    }
+
+    /**
+     * Retrieves the "current" post array.  Form pre-process handlers may change or set values using other methods.
+     * @return array|null
+     *
+     */
+    public function getPost()
+    {
+        if (!$this->post_cached) {
+            if (!empty($_POST)) {
+                // Run through and "deslash" post because Wordpress adds them automatically.
+                $this->current_post = array_map('stripslashes_deep', $_POST);
+
+                $this->post_cached = true;
+            } else {
+                $this->current_post = null;
+            }
+        }
+
+        return $this->current_post;
     }
 
     /**
@@ -361,7 +441,7 @@ class NIForms
                 'submitted_form_values' => $this->getPost() // This is for debugging
             );
 
-            if ($_POST['_submit-style'] = 'ajax') {
+            if ($this->check_if_ajax()) {
                 echo wp_json_encode($return);
                 wp_die();
             } else {
@@ -370,27 +450,6 @@ class NIForms
         }
 
         return null;
-    }
-
-    /**
-     * Retrieves the "current" post array.  Form pre-process handlers may change or set values using other methods.
-     * @return array|null
-     *
-     */
-    public function getPost()
-    {
-        if (!$this->post_cached) {
-            if (!empty($_POST)) {
-                // Run through and "deslash" post because Wordpress adds them automatically.
-                $this->current_post = array_map('stripslashes_deep', $_POST);
-
-                $this->post_cached = true;
-            } else {
-                $this->current_post = null;
-            }
-        }
-
-        return $this->current_post;
     }
 
     /**
@@ -404,20 +463,15 @@ class NIForms
         return self::$form_processors[$code];
     }
 
-    public function getPostValue($key)
+    /**
+     * Returns whether the current connection was an ajax request
+     */
+    protected function check_if_ajax()
     {
-        if ($this->hasPostKey($key)) {
-            $post = $this->getPost();
-            return $post[$key];
-        } else {
-            return null;
+        if (defined('DOING_AJAX') && DOING_AJAX) {
+            return true;
         }
-    }
-
-    public function hasPostKey($key)
-    {
-        $post = $this->getPost();
-        return is_array($post) && array_key_exists($key, $post);
+        return false;
     }
 
     static protected function has_form_processor($code)
