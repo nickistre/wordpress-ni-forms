@@ -90,8 +90,8 @@ NIForm.Form.prototype.setupAjaxForm = function(targetUrl, formData) {
             }
         },
         error: function() {
-            console.log('Error!');
-            console.log(arguments);
+            //console.log('Error!');
+            //console.log(arguments);
             window.alert('Error occurred on form submit!');
             jQuery(formSel).unblock();
         },
