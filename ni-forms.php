@@ -213,12 +213,6 @@ class NIForms
             $atts['id'] = $this->generate_form_id($atts, $content, $tag);
         }
 
-        // Process form in case submitted via standard submit.
-        if ($this->check_for_processing($atts['id'])) {
-            // TODO: Do something with the process_result, like showing error or success message
-            $process_result = $this->process_form();
-        }
-
         // 'method' should default to POST
         if (empty($atts['method'])) {
             $atts['method'] = 'post';
@@ -298,15 +292,14 @@ class NIForms
                 htmlentities2($name), htmlentities2($value));
         }
 
-
-        $output = sprintf('<form%1$s>%2$s%3$s</form>', $atts_string, $content, $hidden_fields_content);
-
+        $output = "";
+        $form_output = sprintf('<form%1$s>%2$s%3$s</form>', $atts_string, $content, $hidden_fields_content);
         // Add javascript code for ajax and/or honeypot
         if (!$disable_ajax) {
             wp_enqueue_script('ni-forms');
             wp_enqueue_style('ni-forms');
 
-            $output .= "
+            $form_output .= "
 <script>
     jQuery(document).ready(function() {
         var formId = " . wp_json_encode($atts['id']) . ";
@@ -319,6 +312,58 @@ class NIForms
     });
 </script>";
 
+        }
+
+        // Process form in case submitted via standard submit.
+        if ($this->check_for_processing($atts['id'])) {
+            // TODO: Do something with the process_result, like showing error or success message
+            $process_result = $this->process_form();
+
+            if ($process_result['process_result']) {
+                // Success path.
+                if (!is_null($process_result['redirect_url'])) {
+                    $redirect_url = $process_result['redirect_url'];
+                    // Need to redirect to the given url
+                    if (!headers_sent()) {
+                        // Headers not sent yet!  We can use the redirect headers immediately.
+                        header('Location: ' . $redirect_url);
+                        $output = "<p>Redirecting to <a href='${redirect_url}'>" . htmlentities($redirect_url) . "</a></p>";
+                        echo $output;
+                        wp_die();
+                    } else {
+                        // Headers already sent!  We can attempt to redirect via Javascript at this point.
+                        $output .= "<p>Redirecting to <a href='${redirect_url}'>" . htmlentities($redirect_url) . "</a></p>";
+                        $output .= <<<EOT
+<script>
+jQuery(document).ready(function() {
+    window.location.replace('${redirect_url}');
+});
+</script>
+EOT;
+                        return $output;
+                    }
+                } elseif (!is_null($process_result['replace_html'])) {
+                    // Replace form with supplied html
+
+                    $output .= $process_result['replace_html'];
+                } elseif (!is_null($process_result['process_message'])) {
+                    // Add message before form
+                    // TODO: Add some way to template this.
+                    $process_message = $process_result['process_message'];
+
+                    $output .= "<p>${process_message}</p>";
+                } else {
+                    // Nothing to do, just show new form.
+                    $output .= $form_output;
+                }
+            } else {
+                // Fail mode.  Show an error message with the form.
+                // TODO: Add some way to template this.
+                $output .= "<p class='failure'>Error occurred on form submit!</p>";
+                $output .= $form_output;
+            }
+        } else {
+            $output .= $form_output;
         }
 
         return $output;
@@ -341,6 +386,63 @@ class NIForms
         $id = 'nif' . md5(var_export($atts, true) . $content . $tag . $post_id);
 
         return $id;
+    }
+
+    static protected function has_form_processor($code)
+    {
+        if (array_key_exists($code, self::$form_processors)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    static protected function get_all_processor_codes()
+    {
+        return array_keys(self::$form_processors);
+    }
+
+    /**
+     * @return string
+     */
+    public static function getDefaultSuccessMessage()
+    {
+        return self::$default_success_message;
+    }
+
+    /**
+     * @param string $default_success_message
+     */
+    public static function setDefaultSuccessMessage($default_success_message)
+    {
+        self::$default_success_message = $default_success_message;
+    }
+
+    /**
+     * @return string
+     */
+    public static function getDefaultFailureMessage()
+    {
+        return self::$default_failure_message;
+    }
+
+    /**
+     * @param string $default_failure_message
+     */
+    public static function setDefaultFailureMessage($default_failure_message)
+    {
+        self::$default_failure_message = $default_failure_message;
+    }
+
+    /**
+     * Retrieves the url to post to for the ajax call.
+     *
+     * @return string
+     */
+    protected function actionUrl()
+    {
+        $actionUrl = admin_url('admin-ajax.php') . '?' . http_build_query(array('action' => 'niform_process'));
+        return $actionUrl;
     }
 
     /**
@@ -469,63 +571,6 @@ class NIForms
     protected function check_if_ajax()
     {
         return wp_doing_ajax();
-    }
-
-    static protected function has_form_processor($code)
-    {
-        if (array_key_exists($code, self::$form_processors)) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    static protected function get_all_processor_codes()
-    {
-        return array_keys(self::$form_processors);
-    }
-
-    /**
-     * @return string
-     */
-    public static function getDefaultSuccessMessage()
-    {
-        return self::$default_success_message;
-    }
-
-    /**
-     * @param string $default_success_message
-     */
-    public static function setDefaultSuccessMessage($default_success_message)
-    {
-        self::$default_success_message = $default_success_message;
-    }
-
-    /**
-     * @return string
-     */
-    public static function getDefaultFailureMessage()
-    {
-        return self::$default_failure_message;
-    }
-
-    /**
-     * @param string $default_failure_message
-     */
-    public static function setDefaultFailureMessage($default_failure_message)
-    {
-        self::$default_failure_message = $default_failure_message;
-    }
-
-    /**
-     * Retrieves the url to post to for the ajax call.
-     *
-     * @return string
-     */
-    protected function actionUrl()
-    {
-        $actionUrl = admin_url('admin-ajax.php') . '?' . http_build_query(array('action' => 'niform_process'));
-        return $actionUrl;
     }
 
     /**
