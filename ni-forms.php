@@ -17,6 +17,7 @@
 
 require_once __DIR__ . '/NIForms/ProcessorResponse/HTML.php';
 require_once __DIR__ . '/NIForms/ProcessorResponse/Redirect.php';
+require_once __DIR__ . '/NIForms/Form.php';
 
 /**
  * Class NIForm_ProcessorAbstract
@@ -185,6 +186,7 @@ class NIForms
     public function load_plugins()
     {
         // This is probably dangerous, but hey, need to load all plugins from the plugins/ directory...
+        // TODO; Setup a adminitration screen to allow for activating/deactivating these plugins.
         foreach (glob(__DIR__ . '/plugins/*.php') as $plugin_file) {
             include_once $plugin_file;
         }
@@ -207,32 +209,25 @@ class NIForms
     {
         // Check through attributes
 
-        // 'id' attribute is required for later code, if not exist, generate one
-        // For best results, this ID should be unique to the whole site for this form
-        if (empty($atts['id'])) {
-            $atts['id'] = $this->generate_form_id($atts, $content, $tag);
-        }
-
-        // 'method' should default to POST
-        if (empty($atts['method'])) {
-            $atts['method'] = 'post';
-        }
+        $form = new \NIForms\Form($atts, $content, $tag);
 
         // Require a form processor.  If missing, use "null"
         $form_processor = 'null';
-        if (array_key_exists('processor', $atts)) {
-            $form_processor = $atts['processor'];
+        if ($form->hasAttribute('processor')) {
+            $form_processor = $form->getAttribute('processor');
         } else {
-            if (array_key_exists('form-processor', $atts)) {
-                $form_processor = $atts['form-processor'];
+            // Check old attribute name
+            if ($form->hasAttribute('form-processor')) {
+                $form_processor = $form->getAttribute('form-processor');
                 trigger_error('"form-processor" attribute deprecated. Use "processor" instead', E_USER_DEPRECATED);
             } else {
-                trigger_error('"processor" tag missing!  Using "null" processor as default.', E_USER_WARNING);
-                $form_processor = 'null';
+                trigger_error(sprintf('"processor" tag missing!  Using "%1$s" processor as default.', $form_processor),
+                    E_USER_WARNING);
             }
         }
-        unset($atts['processor']);
-        unset($atts['form-processor']);
+        // Remove the processor attributes so they don't show up in final form output.
+        $form->unsetAttribute('processor');
+        $form->unsetAttribute('form-processor');
 
 
         // Check that given processor code is registered in class
@@ -243,57 +238,40 @@ class NIForms
 
         // Get any status messages from the plugin
         // TODO: Store messages in session instead of within form?
-        if (!empty($atts['success-message'])) {
-            $success_message = $atts['success-message'];
-            unset($atts['success-message']);
+        if (!empty($form->getAttribute('success-message'))) {
+            $success_message = $form->getAttribute('success-message');
+            $form->unsetAttribute('success-message');
         } else {
             $success_message = self::getDefaultSuccessMessage();
         }
 
-        if (!empty($atts['error-message'])) {
-            $error_message = $atts['error-message'];
-            unset($atts['error-message']);
+        if (!empty($form->getAttribute('error-message'))) {
+            $error_message = $form->getAttribute(['error-message']);
         } else {
             $error_message = self::getDefaultFailureMessage();
         }
 
 
         // Check for disable-ajax attribute
-        $disable_ajax = isset($atts['disable-ajax']) && $atts['disable-ajax'];
+        $disable_ajax = $form->getAttribute('disable-ajax', false);
         // Remove disable-ajax from attributes so it's not added to form tag later
-        if (isset($atts['disable-ajax'])) {
-            unset($atts['disable-ajax']);
-        }
-
-        // Create attributes for form
-        $atts_string = '';
-        foreach ($atts as $name => $value) {
-            $atts_string .= sprintf(' %1$s="%2$s"', htmlentities2($name), htmlentities2($value));
-        }
+        $form->unsetAttribute('disable-ajax');
 
         // Setup additional hidden fields
-        $hidden_fields = array();
-        $hidden_fields['_form-id'] = $atts['id'];
+        $form->setHiddenField('_form-id', $form->getAttribute('id'));
 
         // TODO: The following is probably better stored on the server, but for now, this will work.
-        $hidden_fields['_form-processor'] = $form_processor;
+        $form->setHiddenField('_form-processor', $form_processor);
         if (!empty($success_message)) {
-            $hidden_fields['_success-message'] = $success_message;
+            $form->setHiddenField('_success-message', $success_message);
         }
         if (!empty($error_message)) {
-            $hidden_fields['_error-message'] = $error_message;
+            $form->setHiddenField('_error-message', $error_message);
         }
 
-
-        // Generate html for hidden fields.
-        $hidden_fields_content = '';
-        foreach ($hidden_fields as $name => $value) {
-            $hidden_fields_content .= sprintf('<input type="hidden" name="%1$s" value="%2$s">' . PHP_EOL,
-                htmlentities2($name), htmlentities2($value));
-        }
 
         $output = "";
-        $form_output = sprintf('<form%1$s>%2$s%3$s</form>', $atts_string, $content, $hidden_fields_content);
+        $form_output = $form->toString();
         // Add javascript code for ajax and/or honeypot
         if (!$disable_ajax) {
             wp_enqueue_script('ni-forms');
@@ -302,7 +280,7 @@ class NIForms
             $form_output .= "
 <script>
     jQuery(document).ready(function() {
-        var formId = " . wp_json_encode($atts['id']) . ";
+        var formId = " . wp_json_encode($form->getAttribute('id')) . ";
         var actionUrl = " . wp_json_encode($this->actionUrl()) . ";
         var formData = " . wp_json_encode(array('_submit-style' => 'ajax')) . ";
         
@@ -315,7 +293,7 @@ class NIForms
         }
 
         // Process form in case submitted via standard submit.
-        if ($this->check_for_processing($atts['id'])) {
+        if ($this->check_for_processing($form->getAttribute('id'))) {
             // TODO: Do something with the process_result, like showing error or success message
             $process_result = $this->process_form();
 
@@ -367,25 +345,6 @@ EOT;
         }
 
         return $output;
-    }
-
-    /**
-     * Generates a form id based on the entered information.
-     *
-     * @param $atts
-     * @param $content
-     * @param $tag
-     * @return string
-     */
-    protected function generate_form_id($atts, $content, $tag)
-    {
-        // Can't use random ID in case of page caching
-        global $post;
-        // TODO: Make sure post exists and is an object
-        $post_id = $post instanceof WP_Post ? $post->ID : "";
-        $id = 'nif' . md5(var_export($atts, true) . $content . $tag . $post_id);
-
-        return $id;
     }
 
     static protected function has_form_processor($code)
