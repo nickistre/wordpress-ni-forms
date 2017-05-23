@@ -48,6 +48,13 @@ class Form
      */
     private $post = null;
 
+    /**
+     * Form constructor.
+     * @param $atts
+     * @param $content
+     * @param $tag
+     * @param \WP_Post|null $post
+     */
     public function __construct($atts, $content, $tag, \WP_Post $post = null)
     {
         // Make sure the $atts is passed as an array.
@@ -73,6 +80,15 @@ class Form
         }
 
         return $this;
+    }
+
+    /**
+     * @param $key string
+     * @return bool
+     */
+    public function hasAttribute($key)
+    {
+        return array_key_exists($key, $this->atts);
     }
 
     /**
@@ -116,15 +132,6 @@ class Form
         } else {
             return $default_value;
         }
-    }
-
-    /**
-     * @param $key string
-     * @return bool
-     */
-    public function hasAttribute($key)
-    {
-        return array_key_exists($key, $this->atts);
     }
 
     /**
