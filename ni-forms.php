@@ -32,13 +32,22 @@ interface NIForm_ProcessorAbstract
      *
      * Return value return whether the form processing was successful or not.
      *
-     * @param $form_values
-     * @param $attr
-     * @param $content
-     * @param $tag
-     * @return boolean|string|\NIForms\ProcessorResponse\HTML
+     * @param $form_values array
+     * @param $form \NIForms\Form
+     * @return boolean
      */
-    public function process(array $form_values);
+    public function process(array $form_values, \NIForms\Form $form);
+
+    /**
+     * What to actually do in the case of success
+     *
+     * Needed separately from the process method
+     *
+     * @param array $form_values
+     * @param \NIForms\Form $form
+     * @return boolean|string|\NIForms\ProcessorResponse\HTML|\NIForms\ProcessorResponse\Redirect
+     */
+    public function success(array $form_values, \NIForms\Form $form);
 }
 
 /**
@@ -499,12 +508,17 @@ EOT;
         // TODO: Setup ways to register and create new ways to process form
 
         if ($this->getPost()) {
+            // Get form from _form-hash post value
             $form_hash = $this->getPostValue('_form-hash');
             $form = \NIForms\Form::load($this->getCacheDir() . DIRECTORY_SEPARATOR . $form_hash);
 
             $form_processor = self::get_form_processor($form->getSavedData('processor'));
 
-            $process_result = $form_processor->process($this->getPost());
+            $process_result = $form_processor->process($this->getPost(), $form);
+
+            if ($process_result) {
+                $process_result = $form_processor->success($this->getPost(), $form);
+            }
 
             // Initialize variables with defaults
             $process_message = null;
