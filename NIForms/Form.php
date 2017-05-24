@@ -343,9 +343,8 @@ class Form
      * Requires the directory parameter.  This directory must be
      * writeable by the web process.
      *
-     * Returns the filename used in the directory.  In the future
-     * this may be the relative path to the file from the
-     * $directory location.
+     * Returns the form hash, which will be the name of the file
+     * used to store the serialized data in the given directory.
      *
      * @param $directory
      * @return string
