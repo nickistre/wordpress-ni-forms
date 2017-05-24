@@ -30,6 +30,12 @@ class Form
      */
     private $hidden_fields = array();
     /**
+     * @var array
+     *
+     * Data that needs to be kept with the form through serialization.
+     */
+    private $saved_data = array();
+    /**
      * @var string
      *
      * The content inside the shortcode; normally is the html contents of the form.
@@ -47,6 +53,12 @@ class Form
      * The post object to use with the current form.
      */
     private $post = null;
+    /**
+     * Used to cache the hash of the form object.
+     *
+     * @var string|null
+     */
+    private $cache_hash = null;
 
     /**
      * Form constructor.
@@ -111,8 +123,8 @@ class Form
     {
 
         if (empty($this->getAttribute('id'))) {
-            $post_id = $this->post instanceof \WP_Post ? $post_id->ID : "";
-            $id = 'nif' . md5(var_export($this->atts, true) . $this->content . $this->tag . $post_id);
+
+            $id = 'nif' . $this->getFormHash();
 
             $this->setAttribute('id', $id);
         }
@@ -131,6 +143,87 @@ class Form
             return $this->atts[$key];
         } else {
             return $default_value;
+        }
+    }
+
+    /**
+     * Returns the form "hash" to be used to uniquely id this form.
+     *
+     * @return string
+     */
+    public function getFormHash()
+    {
+        if (is_null($this->cache_hash)) {
+            $post_id = $this->post instanceof \WP_Post ? $this->post->ID : "";
+            $this->cache_hash = md5(var_export($this->atts, true) . $this->content . $this->tag . $post_id);
+        }
+
+
+        return $this->cache_hash;
+    }
+
+    /**
+     * Attempts to load a Form class instance from given filepath
+     *
+     * @param $filepath
+     * @return Form
+     * @throws \Exception
+     */
+    static public function load($filepath)
+    {
+        $serialized_form = file_get_contents($filepath);
+
+        if ($serialized_form === false) {
+            throw new \Exception(sprintf('Error loading serialized form data from "%1$s".', $filepath));
+        }
+
+        $form = unserialize($serialized_form);
+
+        if (!($form instanceof Form)) {
+            throw new \Exception(sprintf('Serialized instance created from file at "%1$s" is not an instance of \NIForms\Form',
+                $filepath));
+        }
+
+        assert($form instanceof Form);
+
+        return $form;
+    }
+
+    /**
+     * @param $key string
+     * @param null $default_value
+     * @return mixed
+     */
+    public function getSavedData($key, $default_value = null)
+    {
+        if ($this->hasSavedData($key)) {
+            return $this->saved_data[$key];
+        } else {
+            return $default_value;
+        }
+    }
+
+    /**
+     * @param $key
+     * @param $value
+     * @return $this
+     */
+    public function setSavedData($key, $value)
+    {
+        $this->saved_data[$key] = $value;
+        return $this;
+    }
+
+    /**
+     * @param $key string
+     * @return bool
+     */
+    public function hasSavedData($key)
+    {
+        if (array_key_exists($key, $this->saved_data)) {
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -242,5 +335,34 @@ class Form
     public function getHiddenFields()
     {
         return $this->hidden_fields;
+    }
+
+    /**
+     * Stores a the serialized string of the current instance into a file.
+     *
+     * Requires the directory parameter.  This directory must be
+     * writeable by the web process.
+     *
+     * Returns the filename used in the directory.  In the future
+     * this may be the relative path to the file from the
+     * $directory location.
+     *
+     * @param $directory
+     * @return string
+     * @throws \Exception
+     */
+    public function save($directory)
+    {
+        $filename = $this->getFormHash();
+        $filepath = $directory . DIRECTORY_SEPARATOR . $filename;
+        $serialized_form = serialize($this);
+        $result = file_put_contents($filepath, $serialized_form);
+
+        if ($result === false) {
+            throw new \Exception(sprintf('Error storing to file at "%1$s". Please make sure the directory at "%2$1" exists is writable for web process',
+                $filepath, $directory));
+        }
+
+        return $filename;
     }
 }

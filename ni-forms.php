@@ -55,16 +55,19 @@ class NIForms
      * Javascript handling to the form.
      */
     const HANDLER_PREFORM = 'preform';
+
     /**
      * Constant for event to run before the process functionality is started.  Can be used to add functionality
      * that must run before the processing system is initiated.
      */
     const HANDLER_PREPROCESS = 'preprocess';
+
     /**
      * Constant for event to run after the processing functionality is completed.  Can be used for logging
      * functionality after processing was completed.
      */
     const HANDLER_POSTPROCESS = 'postprocess';
+
     /**
      * @var array
      */
@@ -79,22 +82,26 @@ class NIForms
         self::HANDLER_PREPROCESS => array(),
         self::HANDLER_POSTPROCESS => array(),
     );
+
     /**
      * Default success message if none was set in the tag.
      * @var string
      */
     static private $default_success_message = null;
+
     /**
      * Default failure message if none was set in the tag.
      * @var string
      */
     static private $default_failure_message = 'Form submit failed.';
+
     /**
      * @var bool
      *
      * Used to indicate if the post has been cached by the current instance
      */
     private $post_cached = false;
+
     /**
      * @var null|array
      *
@@ -257,17 +264,18 @@ class NIForms
         // Remove disable-ajax from attributes so it's not added to form tag later
         $form->unsetAttribute('disable-ajax');
 
-        // Setup additional hidden fields
-        $form->setHiddenField('_form-id', $form->getAttribute('id'));
+        // Setup additional hidden fields and saved data
 
         // TODO: The following is probably better stored on the server, but for now, this will work.
-        $form->setHiddenField('_form-processor', $form_processor);
+        $form->setSavedData('processor', $form_processor);
         if (!empty($success_message)) {
-            $form->setHiddenField('_success-message', $success_message);
+            $form->setSavedData('success-message', $success_message);
         }
         if (!empty($error_message)) {
-            $form->setHiddenField('_error-message', $error_message);
+            $form->setSavedData('error-message', $error_message);
         }
+
+        $form->setHiddenField('_form-hash', $form->getFormHash());
 
 
         $output = "";
@@ -292,9 +300,11 @@ class NIForms
 
         }
 
+        // Save current form to disk
+        $form->save($this->getCacheDir());
+
         // Process form in case submitted via standard submit.
-        if ($this->check_for_processing($form->getAttribute('id'))) {
-            // TODO: Do something with the process_result, like showing error or success message
+        if ($this->check_for_processing($form)) {
             $process_result = $this->process_form();
 
             if ($process_result['process_result']) {
@@ -404,16 +414,33 @@ EOT;
         return $actionUrl;
     }
 
+    protected function getCacheDir()
+    {
+        // TODO: Create a config constant to use to configure this, or admin panel to do so.
+        $cache_dir = WP_CONTENT_DIR . DIRECTORY_SEPARATOR . 'cache/ni-forms';
+
+        // If needed, setup cache directory.
+        if (!is_dir($cache_dir)) {
+            wp_mkdir_p($cache_dir);
+
+            // Create .htaccess file to prevent web access to cache files
+            file_put_contents($cache_dir . DIRECTORY_SEPARATOR . '.htaccess', 'deny from all');
+        }
+
+        return $cache_dir;
+    }
+
     /**
      * Check if there's a post for the current form, for the given $form_id.
      *
-     * @param $form_id
+     * @param $form \NIForms\Form
      * @return boolean
      */
-    protected function check_for_processing($form_id)
+    protected function check_for_processing(\NIForms\Form $form)
     {
-        $post_form_id = $this->getPostValue('_form-id');
-        if ($post_form_id == $form_id) {
+        $form_hash = $form->getFormHash();
+        $post_form_hash = $this->getPostValue('_form-hash');
+        if ($post_form_hash == $form_hash) {
             return true;
         } else {
             return false;
@@ -472,7 +499,10 @@ EOT;
         // TODO: Setup ways to register and create new ways to process form
 
         if ($this->getPost()) {
-            $form_processor = self::get_form_processor($this->getPostValue('_form-processor'));
+            $form_hash = $this->getPostValue('_form-hash');
+            $form = \NIForms\Form::load($this->getCacheDir() . DIRECTORY_SEPARATOR . $form_hash);
+
+            $form_processor = self::get_form_processor($form->getSavedData('processor'));
 
             $process_result = $form_processor->process($this->getPost());
 
@@ -489,9 +519,9 @@ EOT;
             } elseif ($process_result instanceof \NIForms\ProcessorResponse\Redirect) {
                 $redirect_url = $process_result->url;
             } elseif ($process_result) {
-                $process_message = $this->hasPostKey('_success-message') ? $this->getPostValue("_success-message") : null;
+                $process_message = $form->getSavedData("success-message", null);
             } else {
-                $process_message = $this->hasPostKey('_error-message') ? $this->getPostValue('_error-messag') : null;
+                $process_message = $form->getSavedData('error-message', null);
             }
 
             $return = array(
