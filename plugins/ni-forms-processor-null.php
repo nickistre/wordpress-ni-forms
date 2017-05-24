@@ -21,9 +21,19 @@ class NIForm_Processor_Null implements NIForm_ProcessorAbstract {
      * @param array $form_values
      * @return bool
      */
-    public function process(array $form_values)
+    public function process(array $form_values, \NIForms\Form $form)
     {
         // Just return true!
+        return true;
+    }
+
+    /**
+     * @param array $form_values
+     * @param \NIForms\Form $form
+     * @return bool
+     */
+    public function success(array $form_values, \NIForms\Form $form)
+    {
         return true;
     }
 }
