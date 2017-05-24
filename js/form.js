@@ -57,7 +57,10 @@ NIForm.Form.prototype.setupAjaxForm = function(targetUrl, formData) {
                 }
 
                 if (responseData.replace_html) {
-                    jQuery(formSel).html(responseData.replace_html);
+                    jQuery(formSel).fadeOut(function () {
+                        jQuery(formSel).html(responseData.replace_html);
+                        jQuery(formSel).fadeIn();
+                    });
                 }
 
                 if (responseData.process_message) {
