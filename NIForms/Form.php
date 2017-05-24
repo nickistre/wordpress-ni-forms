@@ -54,6 +54,11 @@ class Form
      */
     private $post = null;
     /**
+     * @var array
+     * Array of Javascript code to include as part of the form output.
+     */
+    private $scripts = array();
+    /**
      * Used to cache the hash of the form object.
      *
      * @var string|null
@@ -314,8 +319,17 @@ class Form
                 htmlentities2($name), htmlentities2($value));
         }
 
+        $script_output = implode("\n\n", $this->scripts);
+
         // generate final form output.
-        $form_output = sprintf('<form%1$s>%2$s%3$s</form>', $form_atts_string, $this->content, $hidden_fields_content);
+        $form_output = sprintf(<<<'EOT'
+<form%1$s>
+%2$s
+%3$s
+</form>
+%4$s
+EOT
+            , $form_atts_string, $this->content, $hidden_fields_content, $script_output);
 
         return $form_output;
     }
@@ -335,6 +349,18 @@ class Form
     public function getHiddenFields()
     {
         return $this->hidden_fields;
+    }
+
+    /**
+     * @param $script
+     * Javascript to add to the form output.
+     *
+     * Must be surrounded by <script> tags!
+     */
+    public function addScript($script)
+    {
+        // TODO: Validate script to be proper javascript?
+        $this->scripts[] = $script;
     }
 
     /**

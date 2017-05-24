@@ -92,9 +92,14 @@ class NIForms
      * functionality after processing was completed.
      *
      * Function structure:
-     * function(array $form_values, \NIForms\Form $form, boolean $process_result, mixed $process_message) -> void
+     * function(array $form_values, \NIForms\Form $form, mixed $preprocess_result, mixed $process_result) -> void
      */
     const HANDLER_POSTPROCESS = 'postprocess';
+
+    /**
+     * The action endpoint to use for AJAX form submits.
+     */
+    const AJAX_ACTION = 'niform_process';
 
     /**
      * @var array
@@ -146,8 +151,8 @@ class NIForms
     public function __construct()
     {
         add_shortcode('ni-form', array($this, 'shortcode'));
-        add_action('wp_ajax_niform_process', array($this, 'process_form'));
-        add_action('wp_ajax_nopriv_niform_process', array($this, 'process_form'));
+        add_action('wp_ajax_' . self::AJAX_ACTION, array($this, 'process_form'));
+        add_action('wp_ajax_nopriv_' . self::AJAX_ACTION, array($this, 'process_form'));
 
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
     }
@@ -177,7 +182,7 @@ class NIForms
             trigger_error('Value passed for $function parameter is not callable.', E_USER_ERROR);
         }
 
-        self::$event_handlers[] = $function;
+        self::$event_handlers[$event][] = $function;
     }
 
     public function enqueue_scripts()
@@ -286,14 +291,12 @@ class NIForms
         $output = "";
 
         $form = self::runPreformHandlers($form);
-
-        $form_output = $form->toString();
         // Add javascript code for ajax and/or honeypot
         if (!$disable_ajax) {
             wp_enqueue_script('ni-forms');
             wp_enqueue_style('ni-forms');
 
-            $form_output .= "
+            $form->addScript("
 <script>
     jQuery(document).ready(function() {
         var formId = " . wp_json_encode($form->getAttribute('id')) . ";
@@ -304,9 +307,11 @@ class NIForms
         
         form.setupAjaxForm(actionUrl, formData);
     });
-</script>";
+</script>");
 
         }
+
+        $form_output = $form->toString();
 
         // Save current form to disk
         $form->save($this->getCacheDir());
@@ -442,7 +447,7 @@ EOT;
      */
     protected function actionUrl()
     {
-        $actionUrl = admin_url('admin-ajax.php') . '?' . http_build_query(array('action' => 'niform_process'));
+        $actionUrl = admin_url('admin-ajax.php') . '?' . http_build_query(array('action' => self::AJAX_ACTION));
         return $actionUrl;
     }
 
@@ -544,9 +549,7 @@ EOT;
                 $process_result = $form_processor->process($this->getPost(), $form);
 
                 if ($process_result) {
-                    $process_action = $form_processor->success($this->getPost(), $form);
-                } else {
-                    $process_action = $process_result;
+                    $process_result = $form_processor->success($this->getPost(), $form);
                 }
             } else {
                 if ($preprocess_result === false) {
@@ -570,14 +573,14 @@ EOT;
             $replace_html = null;
             $redirect_url = null;
 
-            if (is_string($process_action)) {
+            if (is_string($process_result)) {
                 $process_message = $process_result;
-            } elseif ($process_action instanceof \NIForms\ProcessorResponse\HTML) {
-                $replace_html = $process_action->new_html;
-                $process_message = $process_action->popup_message;
-            } elseif ($process_action instanceof \NIForms\ProcessorResponse\Redirect) {
-                $redirect_url = $process_action->url;
-            } elseif ($process_action) {
+            } elseif ($process_result instanceof \NIForms\ProcessorResponse\HTML) {
+                $replace_html = $process_result->new_html;
+                $process_message = $process_result->popup_message;
+            } elseif ($process_result instanceof \NIForms\ProcessorResponse\Redirect) {
+                $redirect_url = $process_result->url;
+            } elseif ($process_result) {
                 $process_message = $form->getSavedData("success-message", null);
             } else {
                 $process_message = $form->getSavedData('error-message', null);
@@ -591,7 +594,7 @@ EOT;
                 'submitted_form_values' => $this->getPost() // This is for debugging
             );
 
-            self::runPostprocessHandlers($this->getPost(), $form, $process_result, $process_action);
+            self::runPostprocessHandlers($this->getPost(), $form, $preprocess_result, $process_result);
 
             if ($this->check_if_ajax()) {
                 echo wp_json_encode($return);
@@ -654,20 +657,20 @@ EOT;
     /**
      * @param array $form_values
      * @param \NIForms\Form $form
-     * @param $process_result
-     * @param $process_message
+     * @param mixed $preprocess_result
+     * @param mixed $process_message
      */
     static protected function runPostprocessHandlers(
         array $form_values,
         \NIForms\Form $form,
-        $process_result,
+        $preprocess_result,
         $process_message
     ) {
         $handlers = self::$event_handlers[self::HANDLER_POSTPROCESS];
         assert(is_array($handlers));
         foreach ($handlers as $handler) {
             assert(is_callable($handler));
-            $return = call_user_func($handler, $form_values, $form, $process_result, $process_message);
+            $return = call_user_func($handler, $form_values, $form, $preprocess_result, $process_message);
 
             // We're not doing anything with the return value, actually...
         }
