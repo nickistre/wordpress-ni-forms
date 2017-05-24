@@ -62,18 +62,37 @@ class NIForms
     /**
      * Constant for event to run before the form itself is generated.  Can be used to add hidden fields and
      * Javascript handling to the form.
+     *
+     * Function structure:
+     * function(\NIForms\Form $form) -> \NIForms\Form
+     *
+     * Function must return an instance of \NIForms\Form; plugin with warning out if this doesn't happen.
      */
     const HANDLER_PREFORM = 'preform';
 
     /**
      * Constant for event to run before the process functionality is started.  Can be used to add functionality
      * that must run before the processing system is initiated.
+     *
+     * Function structure:
+     * function(array $form_values, \NIForms\Form $form) -> bool/int
+     *
+     * Return true to continue pre process.  Return false to immediately stop preprocess.
+     * For integers, look at the "PREPROCESS_RETURN_*" constants for the possible values.
      */
     const HANDLER_PREPROCESS = 'preprocess';
 
     /**
+     * If this is returned by the Precprocess, halt further execution and pretend the process succeeded.
+     */
+    const PREPROCESS_RETURN_SILENT_SUCCESS = 1;
+
+    /**
      * Constant for event to run after the processing functionality is completed.  Can be used for logging
      * functionality after processing was completed.
+     *
+     * Function structure:
+     * function(array $form_values, \NIForms\Form $form, boolean $process_result, mixed $process_message) -> void
      */
     const HANDLER_POSTPROCESS = 'postprocess';
 
@@ -159,29 +178,6 @@ class NIForms
         }
 
         self::$event_handlers[] = $function;
-    }
-
-    static protected function runHandlers($event, $param_arr)
-    {
-        if (!array_key_exists($event, self::$event_handlers)) {
-            trigger_error(sprintf('Invalid event "%1$s".  Valid event are: %2$s',
-                implode(', ', $event, array_keys(self::$event_handlers))), E_USER_ERROR);
-        }
-
-        $handlers = self::$event_handlers[$event];
-        assert(is_array($handlers));
-        foreach ($handlers as $handler) {
-            assert(is_callable($handler));
-            $return = call_user_func_array($handler, $param_arr);
-
-            // If any handler returns false, stop running?
-            if ($return === false) {
-                return false;
-            }
-        }
-
-        // If we got here, return true.
-        return true;
     }
 
     public function enqueue_scripts()
@@ -288,6 +284,9 @@ class NIForms
 
 
         $output = "";
+
+        $form = self::runPreformHandlers($form);
+
         $form_output = $form->toString();
         // Add javascript code for ajax and/or honeypot
         if (!$disable_ajax) {
@@ -413,6 +412,30 @@ EOT;
     }
 
     /**
+     * @param \NIForms\Form $form
+     * @return \NIForms\Form
+     */
+    static protected function runPreformHandlers(\NIForms\Form $form)
+    {
+        $handlers = self::$event_handlers[self::HANDLER_PREFORM];
+        assert(is_array($handlers));
+        foreach ($handlers as $handler) {
+            assert(is_callable($handler));
+            $return = call_user_func($handler, $form);
+
+            if ($return instanceof $form) {
+                $form = $return;
+            } else {
+                trigger_error('Preform Handler is not returning an instance of \NIForms\Form: %1$s',
+                    var_export($handler, true), E_USER_WARNING);
+            }
+        }
+
+        assert($form instanceof \NIForms\Form);
+        return $form;
+    }
+
+    /**
      * Retrieves the url to post to for the ajax call.
      *
      * @return string
@@ -512,12 +535,34 @@ EOT;
             $form_hash = $this->getPostValue('_form-hash');
             $form = \NIForms\Form::load($this->getCacheDir() . DIRECTORY_SEPARATOR . $form_hash);
 
+            $preprocess_result = self::runPreprocessHandlers($this->getPost(), $form);
+
             $form_processor = self::get_form_processor($form->getSavedData('processor'));
 
-            $process_result = $form_processor->process($this->getPost(), $form);
+            $process_result = null;
+            if ($preprocess_result === true) {
+                $process_result = $form_processor->process($this->getPost(), $form);
 
-            if ($process_result) {
-                $process_result = $form_processor->success($this->getPost(), $form);
+                if ($process_result) {
+                    $process_action = $form_processor->success($this->getPost(), $form);
+                } else {
+                    $process_action = $process_result;
+                }
+            } else {
+                if ($preprocess_result === false) {
+                    $process_action = false;
+                } else {
+                    switch ($preprocess_result) {
+                        case self::PREPROCESS_RETURN_SILENT_SUCCESS:
+                            // We're going to skip the actual for process and pretend it succeeded.
+                            $process_action = $form_processor->success($this->getPost(), $form);
+                            break;
+
+                        default:
+                            // Something went wrong.  This should be caught in the run handler!
+                            throw new trigger_error('Preprocessor handler error!', E_USER_ERROR);
+                    }
+                }
             }
 
             // Initialize variables with defaults
@@ -525,14 +570,14 @@ EOT;
             $replace_html = null;
             $redirect_url = null;
 
-            if (is_string($process_result)) {
+            if (is_string($process_action)) {
                 $process_message = $process_result;
-            } elseif ($process_result instanceof \NIForms\ProcessorResponse\HTML) {
-                $replace_html = $process_result->new_html;
-                $process_message = $process_result->popup_message;
-            } elseif ($process_result instanceof \NIForms\ProcessorResponse\Redirect) {
-                $redirect_url = $process_result->url;
-            } elseif ($process_result) {
+            } elseif ($process_action instanceof \NIForms\ProcessorResponse\HTML) {
+                $replace_html = $process_action->new_html;
+                $process_message = $process_action->popup_message;
+            } elseif ($process_action instanceof \NIForms\ProcessorResponse\Redirect) {
+                $redirect_url = $process_action->url;
+            } elseif ($process_action) {
                 $process_message = $form->getSavedData("success-message", null);
             } else {
                 $process_message = $form->getSavedData('error-message', null);
@@ -546,6 +591,8 @@ EOT;
                 'submitted_form_values' => $this->getPost() // This is for debugging
             );
 
+            self::runPostprocessHandlers($this->getPost(), $form, $process_result, $process_action);
+
             if ($this->check_if_ajax()) {
                 echo wp_json_encode($return);
                 wp_die();
@@ -558,6 +605,42 @@ EOT;
     }
 
     /**
+     * @param array $form_values
+     * @param \NIForms\Form $form
+     * @return bool|mixed
+     */
+    static protected function runPreprocessHandlers(array $form_values, \NIForms\Form $form)
+    {
+        $handlers = self::$event_handlers[self::HANDLER_PREPROCESS];
+        assert(is_array($handlers));
+        foreach ($handlers as $handler) {
+            assert(is_callable($handler));
+            $return = call_user_func($handler, $form_values, $form);
+
+            if ($return !== true) {
+                if ($return === false) {
+                    return false;
+                } else {
+                    switch ($return) {
+                        case self::PREPROCESS_RETURN_SILENT_SUCCESS:
+                            // Stop and immediately return value.
+                            return $return;
+                            break;
+
+                        default:
+                            // Something went wrong.  Throw an exception with hopefully enough info to debug issue
+                            throw new Exception(sprintf('Preprocess return errror!  Handler info: %1$s',
+                                var_export($handler)));
+                    }
+                }
+            }
+        }
+
+        // If we got here, return true;
+        return true;
+    }
+
+    /**
      * @param $code
      * @return NIForm_ProcessorAbstract
      *
@@ -566,6 +649,28 @@ EOT;
     static protected function get_form_processor($code)
     {
         return self::$form_processors[$code];
+    }
+
+    /**
+     * @param array $form_values
+     * @param \NIForms\Form $form
+     * @param $process_result
+     * @param $process_message
+     */
+    static protected function runPostprocessHandlers(
+        array $form_values,
+        \NIForms\Form $form,
+        $process_result,
+        $process_message
+    ) {
+        $handlers = self::$event_handlers[self::HANDLER_POSTPROCESS];
+        assert(is_array($handlers));
+        foreach ($handlers as $handler) {
+            assert(is_callable($handler));
+            $return = call_user_func($handler, $form_values, $form, $process_result, $process_message);
+
+            // We're not doing anything with the return value, actually...
+        }
     }
 
     /**
