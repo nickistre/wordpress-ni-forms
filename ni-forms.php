@@ -254,7 +254,6 @@ class NIForms
         }
 
         // Get any status messages from the plugin
-        // TODO: Store messages in session instead of within form?
         if (!empty($form->getAttribute('success-message'))) {
             $success_message = $form->getAttribute('success-message');
             $form->unsetAttribute('success-message');
@@ -275,8 +274,6 @@ class NIForms
         $form->unsetAttribute('disable-ajax');
 
         // Setup additional hidden fields and saved data
-
-        // TODO: The following is probably better stored on the server, but for now, this will work.
         $form->setSavedData('processor', $form_processor);
         if (!empty($success_message)) {
             $form->setSavedData('success-message', $success_message);
