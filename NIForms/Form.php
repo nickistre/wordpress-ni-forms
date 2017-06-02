@@ -84,16 +84,23 @@ class Form
         $this->post = $post;
 
         $this->generateFormId()
-            ->checkMethod();
+            ->initAttributes();
     }
 
     /**
+     * Initialize a few attributes to use instead of the standard form settings.
+     *
      * @return $this
      */
-    protected function checkMethod()
+    protected function initAttributes()
     {
         if (!$this->hasAttribute('method')) {
             $this->setAttribute('method', 'post');
+        }
+
+        // Experimenting with setting this as default to allow for file downloads.
+        if (!$this->hasAttribute('enctype')) {
+            $this->setAttribute('enctype', 'multipart/form-data');
         }
 
         return $this;

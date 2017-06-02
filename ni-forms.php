@@ -18,6 +18,7 @@
 require_once __DIR__ . '/NIForms/ProcessorResponse/HTML.php';
 require_once __DIR__ . '/NIForms/ProcessorResponse/Redirect.php';
 require_once __DIR__ . '/NIForms/Form.php';
+require_once __DIR__ . '/NIForms/FormSubmit.php';
 
 /**
  * Class NIForm_ProcessorAbstract
@@ -32,22 +33,22 @@ interface NIForm_ProcessorAbstract
      *
      * Return value return whether the form processing was successful or not.
      *
-     * @param $form_values array
-     * @param $form \NIForms\Form
+     * @param \NIForms\FormSubmit $form_values
+     * @param \NIForms\Form $form
      * @return boolean
      */
-    public function process(array $form_values, \NIForms\Form $form);
+    public function process(\NIForms\FormSubmit $form_submit, \NIForms\Form $form);
 
     /**
      * What to actually do in the case of success
      *
      * Needed separately from the process method
      *
-     * @param array $form_values
+     * @param \NIForms\FormSubmit $form_values
      * @param \NIForms\Form $form
      * @return boolean|string|\NIForms\ProcessorResponse\HTML|\NIForms\ProcessorResponse\Redirect
      */
-    public function success(array $form_values, \NIForms\Form $form);
+    public function success(\NIForms\FormSubmit $form_submit, \NIForms\Form $form);
 }
 
 /**
@@ -127,20 +128,6 @@ class NIForms
      * @var string
      */
     static private $default_failure_message = 'Form submit failed.';
-
-    /**
-     * @var bool
-     *
-     * Used to indicate if the post has been cached by the current instance
-     */
-    private $post_cached = false;
-
-    /**
-     * @var null|array
-     *
-     * Holds the current post status.  This can be changed by handlers so that it changes the process_form input.
-     */
-    private $current_post = null;
 
     /**
      * NIForm constructor.
@@ -455,10 +442,10 @@ EOT;
 
         // If needed, setup cache directory.
         if (!is_dir($cache_dir)) {
-            wp_mkdir_p($cache_dir);
+            $mkdir_result = wp_mkdir_p($cache_dir);
 
             // Create .htaccess file to prevent web access to cache files
-            file_put_contents($cache_dir . DIRECTORY_SEPARATOR . '.htaccess', 'deny from all');
+            $file_put_result = file_put_contents($cache_dir . DIRECTORY_SEPARATOR . '.htaccess', 'deny from all');
         }
 
         return $cache_dir;
@@ -473,49 +460,14 @@ EOT;
     protected function check_for_processing(\NIForms\Form $form)
     {
         $form_hash = $form->getFormHash();
-        $post_form_hash = $this->getPostValue('_form-hash');
+        $formSubmit = new NIForms\FormSubmit();
+
+        $post_form_hash = $formSubmit->Post()->getValue('_form-hash');
         if ($post_form_hash == $form_hash) {
             return true;
         } else {
             return false;
         }
-    }
-
-    public function getPostValue($key)
-    {
-        if ($this->hasPostKey($key)) {
-            $post = $this->getPost();
-            return $post[$key];
-        } else {
-            return null;
-        }
-    }
-
-    public function hasPostKey($key)
-    {
-        $post = $this->getPost();
-        return is_array($post) && array_key_exists($key, $post);
-    }
-
-    /**
-     * Retrieves the "current" post array.  Form pre-process handlers may change or set values using other methods.
-     * @return array|null
-     *
-     */
-    public function getPost()
-    {
-        if (!$this->post_cached) {
-            if (!empty($_POST)) {
-                // Run through and "deslash" post because Wordpress adds them automatically.
-                $this->current_post = array_map('stripslashes_deep', $_POST);
-
-                $this->post_cached = true;
-            } else {
-                $this->current_post = null;
-            }
-        }
-
-        return $this->current_post;
     }
 
     /**
@@ -532,21 +484,23 @@ EOT;
     {
         // TODO: Setup ways to register and create new ways to process form
 
-        if ($this->getPost()) {
+        $form_submit = new \NIForms\FormSubmit();
+
+        if ($form_submit->Post()->exists()) {
             // Get form from _form-hash post value
-            $form_hash = $this->getPostValue('_form-hash');
+            $form_hash = $form_submit->Post()->getValue('_form-hash');
             $form = \NIForms\Form::load($this->getCacheDir() . DIRECTORY_SEPARATOR . $form_hash);
 
-            $preprocess_result = self::runPreprocessHandlers($this->getPost(), $form);
+            $preprocess_result = self::runPreprocessHandlers($form_submit, $form);
 
             $form_processor = self::get_form_processor($form->getSavedData('processor'));
 
             $process_result = null;
             if ($preprocess_result === true) {
-                $process_result = $form_processor->process($this->getPost(), $form);
+                $process_result = $form_processor->process($form_submit, $form);
 
                 if ($process_result) {
-                    $process_result = $form_processor->success($this->getPost(), $form);
+                    $process_result = $form_processor->success($form_submit, $form);
                 }
             } else {
                 if ($preprocess_result === false) {
@@ -555,7 +509,7 @@ EOT;
                     switch ($preprocess_result) {
                         case self::PREPROCESS_RETURN_SILENT_SUCCESS:
                             // We're going to skip the actual for process and pretend it succeeded.
-                            $process_action = $form_processor->success($this->getPost(), $form);
+                            $process_action = $form_processor->success($form_submit, $form);
                             break;
 
                         default:
@@ -588,12 +542,11 @@ EOT;
                 'process_message' => $process_message,
                 'replace_html' => $replace_html,
                 'redirect_url' => $redirect_url,
-                'submitted_form_values' => $this->getPost() // This is for debugging
             );
 
-            self::runPostprocessHandlers($this->getPost(), $form, $preprocess_result, $process_result);
+            self::runPostprocessHandlers($form_submit, $form, $preprocess_result, $process_result);
 
-            if ($this->check_if_ajax()) {
+            if (wp_doing_ajax()) {
                 echo wp_json_encode($return);
                 wp_die();
             } else {
@@ -605,17 +558,17 @@ EOT;
     }
 
     /**
-     * @param array $form_values
+     * @param \NIForms\FormSubmit $form_submit
      * @param \NIForms\Form $form
      * @return bool|mixed
      */
-    static protected function runPreprocessHandlers(array $form_values, \NIForms\Form $form)
+    static protected function runPreprocessHandlers(\NIForms\FormSubmit $form_submit, \NIForms\Form $form)
     {
         $handlers = self::$event_handlers[self::HANDLER_PREPROCESS];
         assert(is_array($handlers));
         foreach ($handlers as $handler) {
             assert(is_callable($handler));
-            $return = call_user_func($handler, $form_values, $form);
+            $return = call_user_func($handler, $form_submit, $form);
 
             if ($return !== true) {
                 if ($return === false) {
@@ -652,13 +605,13 @@ EOT;
     }
 
     /**
-     * @param array $form_values
+     * @param \NIForms\FormSubmit $form_submit
      * @param \NIForms\Form $form
      * @param mixed $preprocess_result
      * @param mixed $process_message
      */
     static protected function runPostprocessHandlers(
-        array $form_values,
+        \NIForms\FormSubmit $form_submit,
         \NIForms\Form $form,
         $preprocess_result,
         $process_message
@@ -667,26 +620,10 @@ EOT;
         assert(is_array($handlers));
         foreach ($handlers as $handler) {
             assert(is_callable($handler));
-            $return = call_user_func($handler, $form_values, $form, $preprocess_result, $process_message);
+            $return = call_user_func($handler, $form_submit, $form, $preprocess_result, $process_message);
 
             // We're not doing anything with the return value, actually...
         }
-    }
-
-    /**
-     * Returns whether the current connection was an ajax request
-     */
-    protected function check_if_ajax()
-    {
-        return wp_doing_ajax();
-    }
-
-    /**
-     * Will reset the current_post to $_POST
-     */
-    public function resetPost()
-    {
-        $this->post_cached = false;
     }
 }
 

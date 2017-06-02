@@ -167,10 +167,10 @@ class NIFormsHoneypot
         return $actionUrl;
     }
 
-    public function preprocessHandler(array $form_values, \NIForms\Form $form)
+    public function preprocessHandler(NIForms\FormSubmit $form_submit, \NIForms\Form $form)
     {
         $form_id = $form->getAttribute('id');
-        $form_token = $form_values[self::FIELD_NAME];
+        $form_token = $form_submit->Post()->getValue(self::FIELD_NAME);
 
         // Check for existing token in session.
         $session_token = $_SESSION[self::SESSION_VAR][$form_id];
