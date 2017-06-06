@@ -3,7 +3,7 @@
 /**
  * Plugin Name: NI Forms - Honeypot
  * Description: Addon for NI Forms system that adds a simple anti-bot honeypot system to forms.
- * Version: 0.0.1
+ * Version: 0.1.0
  * Author: Nicholas Istre
  * GitHub Plugin URI: https://github.com/nickistre/wordpress-ni-forms
  *
