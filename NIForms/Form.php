@@ -18,6 +18,13 @@ namespace NIForms;
 class Form
 {
     /**
+     * @var string
+     *
+     * The name of this form, used for logging and
+     */
+    private $name = null;
+
+    /**
      * @var array
      *
      * The attributes passed in the shortcode
@@ -84,7 +91,66 @@ class Form
         $this->post = $post;
 
         $this->generateFormId()
-            ->initAttributes();
+            ->initAttributes()
+            ->setupName();
+    }
+
+    protected function setupName()
+    {
+        // Check for "form-name" field in attributes
+        if ($this->hasAttribute('form-name')) {
+            $this->name = $this->getAttribute('form-name');
+            $this->unsetAttribute('form-name');
+        }
+
+        if (!is_string($this->name)) {
+            // Generate a name based on tag and ID
+            $this->name = sprintf('%1$s: %2$s', $this->getTag(), $this->getAttribute('id', null));
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param $key string
+     * @return bool
+     */
+    public function hasAttribute($key)
+    {
+        return array_key_exists($key, $this->atts);
+    }
+
+    /**
+     * @param $key string
+     * @param $default_value mixed The value to use if the key does
+     * not exist in the attributes
+     * @return mixed
+     */
+    public function getAttribute($key, $default_value = null)
+    {
+        if ($this->hasAttribute($key)) {
+            return $this->atts[$key];
+        } else {
+            return $default_value;
+        }
+    }
+
+    /**
+     * @param $key
+     * @return $this
+     */
+    public function unsetAttribute($key)
+    {
+        unset($this->atts[$key]);
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getTag()
+    {
+        return $this->tag;
     }
 
     /**
@@ -104,15 +170,6 @@ class Form
         }
 
         return $this;
-    }
-
-    /**
-     * @param $key string
-     * @return bool
-     */
-    public function hasAttribute($key)
-    {
-        return array_key_exists($key, $this->atts);
     }
 
     /**
@@ -141,21 +198,6 @@ class Form
             $this->setAttribute('id', $id);
         }
         return $this;
-    }
-
-    /**
-     * @param $key string
-     * @param $default_value mixed The value to use if the key does
-     * not exist in the attributes
-     * @return mixed
-     */
-    public function getAttribute($key, $default_value = null)
-    {
-        if ($this->hasAttribute($key)) {
-            return $this->atts[$key];
-        } else {
-            return $default_value;
-        }
     }
 
     /**
@@ -204,6 +246,22 @@ class Form
     }
 
     /**
+     * @return string
+     */
+    public function getName()
+    {
+        return $this->name;
+    }
+
+    /**
+     * @return string
+     */
+    public function getContent()
+    {
+        return $this->content;
+    }
+
+    /**
      * @param $key string
      * @param null $default_value
      * @return mixed
@@ -239,16 +297,6 @@ class Form
         } else {
             return false;
         }
-    }
-
-    /**
-     * @param $key
-     * @return $this
-     */
-    public function unsetAttribute($key)
-    {
-        unset($this->atts[$key]);
-        return $this;
     }
 
     /**

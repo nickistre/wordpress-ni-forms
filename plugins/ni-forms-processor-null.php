@@ -21,7 +21,7 @@ class NIForm_Processor_Null implements NIForm_ProcessorAbstract {
      * @param array $form_values
      * @return bool
      */
-    public function process(NIForms\FormSubmit $form_submit, \NIForms\Form $form)
+    public function process(NIForms\FormSubmit $form_submit, \NIForms\Form $form, \NIForms\Logger &$logger)
     {
         // Just return true!
         return true;
@@ -32,7 +32,7 @@ class NIForm_Processor_Null implements NIForm_ProcessorAbstract {
      * @param \NIForms\Form $form
      * @return bool
      */
-    public function success(\NIForms\FormSubmit $form_submit, \NIForms\Form $form)
+    public function success(\NIForms\FormSubmit $form_submit, \NIForms\Form $form, \NIForms\Logger &$logger)
     {
         return true;
     }

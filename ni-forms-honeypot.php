@@ -136,7 +136,7 @@ class NIFormsHoneypot
         wp_register_script('ni-forms-honeypot', plugins_url('js/form-honeypot.js', __FILE__), array('jquery'));
     }
 
-    public function preformHandler(\NIForms\Form $form)
+    public function preformHandler(\NIForms\Form $form, \NIForms\Logger &$logger)
     {
         if (!$form->getAttribute('disable-honeypot', false)) {
 
@@ -153,6 +153,9 @@ class NIFormsHoneypot
     });
 </script>
         ");
+        } else {
+            // Need to inform the system that there is no honeypot token to check for.
+            $form->setSavedData('disable-honeypot', true);
         }
 
         // Remove attribute so it doesn't end up in final form
@@ -167,20 +170,28 @@ class NIFormsHoneypot
         return $actionUrl;
     }
 
-    public function preprocessHandler(NIForms\FormSubmit $form_submit, \NIForms\Form $form)
+    public function preprocessHandler(NIForms\FormSubmit $form_submit, \NIForms\Form $form, \NIForms\Logger &$logger)
     {
-        $form_id = $form->getAttribute('id');
-        $form_token = $form_submit->Post()->getValue(self::FIELD_NAME);
+        $disable_honeypot = $form->getSavedData('disable-honeypot', false);
+        if (!$disable_honeypot) {
+            $form_id = $form->getAttribute('id');
+            $form_token = $form_submit->Post()->getValue(self::FIELD_NAME);
 
-        // Check for existing token in session.
-        $session_token = $_SESSION[self::SESSION_VAR][$form_id];
+            // Check for existing token in session.
+            $session_token = $_SESSION[self::SESSION_VAR][$form_id];
 
-        if ($form_token == $session_token) {
-            // Remove token from session
-            unset($_SESSION[self::SESSION_VAR][$form_id]);
-            return true;
+            if ($form_token == $session_token) {
+                // Remove token from session.  This will prevent the user being able to "double-submit" without reloading the page.ss
+                unset($_SESSION[self::SESSION_VAR][$form_id]);
+                return true;
+            } else {
+                $logger->log(\NIForms\Psr\Log\LogLevel::ERROR,
+                    'Failed honeypot check, initialized "silent success" process');
+                return NIForms::PREPROCESS_RETURN_SILENT_SUCCESS;
+            }
         } else {
-            return NIForms::PREPROCESS_RETURN_SILENT_SUCCESS;
+            // Honeypot system is disabled on this form; just return true.
+            return true;
         }
     }
 }

@@ -14,12 +14,12 @@
  * Can be used as a base for a custom form processor.
  */
 class NIFormsTestRedirect implements NIForm_ProcessorAbstract {
-    public function process(\NIForms\FormSubmit $form_submit, \NIForms\Form $form)
+    public function process(\NIForms\FormSubmit $form_submit, \NIForms\Form $form, \NIForms\Logger &$logger)
     {
         return true;
     }
 
-    public function success(NIForms\FormSubmit $form_submit, \NIForms\Form $form)
+    public function success(NIForms\FormSubmit $form_submit, \NIForms\Form $form, \NIForms\Logger &$logger)
     {
         $redirect = new \NIForms\ProcessorResponse\Redirect();
 
