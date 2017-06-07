@@ -85,9 +85,9 @@ class NIForms
     const HANDLER_PREPROCESS = 'preprocess';
 
     /**
-     * If this is returned by the Precprocess, halt further execution and pretend the process succeeded.
+     * If this is returned by the Preprocess, halt further execution and pretend the process succeeded.
      */
-    const PREPROCESS_RETURN_SILENT_SUCCESS = 1;
+    const PREPROCESS_RETURN_SILENT_FAILURE = 1;
 
     /**
      * Constant for event to run after the processing functionality is completed.  Can be used for logging
@@ -553,8 +553,8 @@ EOT;
                     $process_result = false;
                 } else {
                     switch ($preprocess_result) {
-                        case self::PREPROCESS_RETURN_SILENT_SUCCESS:
-                            // We're going to skip the actual for process and pretend it succeeded.
+                        case self::PREPROCESS_RETURN_SILENT_FAILURE:
+                            // We're going to skip the actual form processing and pretend it succeeded.
                             $process_result = $form_processor->success($form_submit, $form, $process_logger);
                             break;
 
@@ -631,7 +631,7 @@ EOT;
                     return false;
                 } else {
                     switch ($return) {
-                        case self::PREPROCESS_RETURN_SILENT_SUCCESS:
+                        case self::PREPROCESS_RETURN_SILENT_FAILURE:
                             // Stop and immediately return value.
                             $logger->popHandler();
                             $logger->popStage();

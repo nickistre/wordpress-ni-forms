@@ -184,16 +184,16 @@ class NIFormsHoneypot
             if (is_null($session_token)) {
                 // Something happened where this token was never created but the honeypot system wasn't disabled for the form.
                 $logger->log(\NIForms\Psr\Log\LogLevel::ERROR,
-                    'Failed honeypot check; token was never generated.  Initialized "silent success" process');
-                return NIForms::PREPROCESS_RETURN_SILENT_SUCCESS;
+                    'Failed honeypot check; token was never generated.  Initialized "silent failure" process');
+                return NIForms::PREPROCESS_RETURN_SILENT_FAILURE;
             } else if ($form_token == $session_token) {
                 // Remove token from session.  This will prevent the user being able to "double-submit" without reloading the page.ss
                 unset($_SESSION[self::SESSION_VAR][$form_id]);
                 return true;
             } else {
                 $logger->log(\NIForms\Psr\Log\LogLevel::ERROR,
-                    'Failed honeypot check, initialized "silent success" process');
-                return NIForms::PREPROCESS_RETURN_SILENT_SUCCESS;
+                    'Failed honeypot check.  Initialized "silent failure" process');
+                return NIForms::PREPROCESS_RETURN_SILENT_FAILURE;
             }
         } else {
             // Honeypot system is disabled on this form; just return true.
