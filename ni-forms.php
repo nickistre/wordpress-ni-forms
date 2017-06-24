@@ -617,6 +617,11 @@ EOT;
     {
         $logger->pushStage(self::HANDLER_PREPROCESS);
 
+        /**
+         * Indicates whether to run processor after preProcess section.
+         */
+        $run_process = true;
+
         $handlers = self::$event_handlers[self::HANDLER_PREPROCESS];
         assert(is_array($handlers));
         foreach ($handlers as $name => $handler) {
@@ -628,20 +633,21 @@ EOT;
 
             if ($return !== true) {
                 if ($return === false) {
-                    return false;
+                    // Silent fail should override hard fail.
+                    if ($run_process === true) {
+                        $run_process = false;
+                    }
                 } else {
                     switch ($return) {
                         case self::PREPROCESS_RETURN_SILENT_FAILURE:
-                            // Stop and immediately return value.
-                            $logger->popHandler();
-                            $logger->popStage();
-                            return $return;
+                            // We want to set that we don't run the processor, but continue with other preprocessors
+                            $run_process = $return;
                             break;
 
                         default:
                             // Something went wrong.  Throw an exception with hopefully enough info to debug issue
-                            throw new Exception(sprintf('Preprocess return errror!  Handler info: %1$s',
-                                var_export($handler)));
+                            throw new Exception(sprintf('Preprocess return errror!  Handler "%1$s" returned value: %2$s',
+                                $name, $return));
                     }
                 }
             }
@@ -649,10 +655,15 @@ EOT;
             $logger->popHandler();
         }
 
+        if ($run_process !== true) {
+            $logger->log(\NIForms\Psr\Log\LogLevel::INFO,
+                sprintf('Some pre process setup returned as failed, not running processor on form.  Returning: %1$s',
+                    $return));
+        }
+
         $logger->popStage();
 
-        // If we got here, return true;
-        return true;
+        return $run_process;
     }
 
     /**
