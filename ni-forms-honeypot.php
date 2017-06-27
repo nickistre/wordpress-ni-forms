@@ -3,7 +3,7 @@
 /**
  * Plugin Name: NI Forms - Honeypot
  * Description: Addon for NI Forms system that adds a simple anti-bot honeypot system to forms.
- * Version: 0.1.1
+ * Version: 0.2.0
  * Author: Nicholas Istre
  * GitHub Plugin URI: https://github.com/nickistre/wordpress-ni-forms
  *
@@ -298,7 +298,15 @@ EOT;
             if (empty($honeypot_id)) {
                 // Check for existing token in session.
                 // TODO: Check for keys existing before looking up token values
-                $session_token = $_SESSION[self::SESSION_VAR][$form_id];
+                if (is_array($_SESSION)
+                    && array_key_exists(self::SESSION_VAR, $_SESSION)
+                    && is_array($_SESSION[self::SESSION_VAR])
+                    && array_key_exists($form_id, $_SESSION[self::SESSION_VAR])
+                ) {
+                    $session_token = $_SESSION[self::SESSION_VAR][$form_id];
+                } else {
+                    $session_token = null;
+                }
             } else {
                 // Look for honeypot id in table
                 $sql = $wpdb->prepare("SELECT id, honeypot_token FROM `${table_name}` WHERE form_id = %s AND honeypot_id = %s",
