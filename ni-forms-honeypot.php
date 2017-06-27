@@ -18,9 +18,17 @@ class NIFormsHoneypot
 
     const FIELD_NAME = '_ni-form-honeypot-token';
 
+    const ID_FIELD_NAME = '_ni-form-honeypot-id';
+
     const SESSION_VAR = 'ni-forms-honeypot';
 
+    const OPTIONS_DB_VERSION = 'ni_forms_db_version';
 
+    const DB_VERSION = '1.1';
+
+    const DB_TABLE_NAME = 'ni_form_honeypot_data';
+
+    const SCHEDULE_HOOK_NAME = 'niform_honeypot_cleartable';
     /**
      * @var null|array
      *
@@ -39,7 +47,6 @@ class NIFormsHoneypot
         add_action('init', array($this, 'startSession'));
         add_action('wp_logout', array($this, 'endSession'));
         add_action('wp-login', array($this, 'endSession'));
-
     }
 
     static public function register()
@@ -48,6 +55,95 @@ class NIFormsHoneypot
 
         NIForms::addHandler(NIForms::HANDLER_PREFORM, array($honeypot, 'preformHandler'));
         NIForms::addHandler(NIForms::HANDLER_PREPROCESS, array($honeypot, 'preprocessHandler'));
+    }
+
+    /**
+     * Crons and setupsneed to be handled outside of the registration code.
+     */
+    static public function setupCron()
+    {
+        add_action('admin_init', array('NIFormsHoneypot', 'dbInstall'));
+
+        add_action(self::SCHEDULE_HOOK_NAME, array('NIFormsHoneypot', 'clearOldHoneypotIds'));
+        register_activation_hook(__FILE__, array('NIFormsHoneypot', 'activateCron'));
+        register_deactivation_hook(__FILE__, array('NIFormsHoneypot', 'deactivateCron'));
+    }
+
+    static public function deactivateCron()
+    {
+        wp_clear_scheduled_hook(self::SCHEDULE_HOOK_NAME);
+    }
+
+    static public function clearOldHoneypotIds()
+    {
+        global $wpdb;
+
+        self::dbInstall();
+
+        // Timestamp to check for
+        $maxAge = self::getHoneyPotDataMaxAge();
+
+        $table_name = self::getTableName(self::DB_TABLE_NAME);
+
+        $sql = $wpdb->prepare("DELETE FROM `${table_name}` WHERE TIMESTAMPDIFF(SECOND, ts, CURRENT_TIMESTAMP) >= %d",
+            $maxAge);
+
+        $result = $wpdb->query($sql);
+    }
+
+    static public function dbInstall()
+    {
+        $installed_ver = get_option(self::OPTIONS_DB_VERSION);
+
+        if (self::DB_VERSION != $installed_ver) {
+            global $wpdb;
+            $charset_collate = $wpdb->get_charset_collate();
+
+            $table_name = self::getTableName(self::DB_TABLE_NAME);
+            $sql = <<<EOT
+CREATE TABLE ${table_name} (
+  id bigint(20) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  ts timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  form_id varchar(255),
+  honeypot_id varchar(255),
+  honeypot_token varchar(255)
+) ${charset_collate}
+EOT;
+
+            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+            $dbDeltaResult = dbDelta($sql);
+
+            update_option(self::OPTIONS_DB_VERSION, self::DB_VERSION);
+        }
+
+        // Make sure cron is setup.
+        self::activateCron();
+    }
+
+    static protected function getTableName($partialName)
+    {
+        global $wpdb;
+        return $wpdb->prefix . $partialName;
+    }
+
+    static public function activateCron()
+    {
+        if (!wp_next_scheduled(self::SCHEDULE_HOOK_NAME)) {
+            wp_schedule_event(time(), 'hourly', self::SCHEDULE_HOOK_NAME);
+        }
+    }
+
+    /**
+     * This returns the max age the honeypot data can be.
+     *
+     * @return int
+     *
+     * @todo Currently set to 1 day, should be configurable through admin panel.
+     */
+    static public function getHoneyPotDataMaxAge()
+    {
+        // Return a max age of 1 day for now.
+        return 24 * 60 * 60;
     }
 
     /**
@@ -72,17 +168,35 @@ class NIFormsHoneypot
 
     public function ajaxGenerateToken()
     {
+        $this->dbInstall();
+
         $form_id = $this->getPostValue('formId');
+        // The following is sent back in case cookies are not enabled on the client browser
+        $honeypot_id = $this->getPostValue('honeypotId');
 
         // Generate a new token
         $token = md5(uniqid(mt_rand(), true));
 
-        // Save token in Session in relation to formId given.
-        if (!is_array($_SESSION[self::SESSION_VAR])) {
-            $_SESSION[self::SESSION_VAR] = array();
-        }
+        if (empty($honeypot_id)) {
+            // Save token in Session in relation to formId given.
+            if (!is_array($_SESSION[self::SESSION_VAR])) {
+                $_SESSION[self::SESSION_VAR] = array();
+            }
 
-        $_SESSION[self::SESSION_VAR][$form_id] = $token;
+            $_SESSION[self::SESSION_VAR][$form_id] = $token;
+        } else {
+            // Store honeypot id and token into database table.
+            global $wpdb;
+
+            $table_name = $this->getTableName(self::DB_TABLE_NAME);
+            $insert_array = array(
+                'form_id' => $form_id,
+                'honeypot_id' => $honeypot_id,
+                'honeypot_token' => $token
+            );
+
+            $wpdb->insert($table_name, $insert_array);
+        }
 
         $return = array(
             'token' => $token
@@ -90,7 +204,6 @@ class NIFormsHoneypot
 
         echo wp_json_encode($return);
         wp_die();
-
     }
 
     public function getPostValue($key)
@@ -148,8 +261,9 @@ class NIFormsHoneypot
         var formId = " . wp_json_encode($form->getAttribute('id')) . ";
         var tokenUrl = " . wp_json_encode($this->actionUrl()) . ";
         var fieldName = " . wp_json_encode(self::FIELD_NAME) . ";
+        var honeypotIdFieldName = " . wp_json_encode(self::ID_FIELD_NAME) . ";
         
-        var honeypot = new NIForm.Honeypot(formId, tokenUrl, fieldName);
+        var honeypot = new NIForm.Honeypot(formId, tokenUrl, fieldName, honeypotIdFieldName);
     });
 </script>
         ");
@@ -172,14 +286,31 @@ class NIFormsHoneypot
 
     public function preprocessHandler(NIForms\FormSubmit $form_submit, \NIForms\Form $form, \NIForms\Logger &$logger)
     {
+        global $wpdb;
+        $table_name = $this->getTableName(self::DB_TABLE_NAME);
+
         $disable_honeypot = $form->getSavedData('disable-honeypot', false);
         if (!$disable_honeypot) {
             $form_id = $form->getAttribute('id');
             $form_token = $form_submit->Post()->getValue(self::FIELD_NAME);
+            $honeypot_id = $form_submit->Post()->getValue(self::ID_FIELD_NAME, null);
 
-            // Check for existing token in session.
-            // TODO: Check for keys existing before looking up token values
-            $session_token = $_SESSION[self::SESSION_VAR][$form_id];
+            if (empty($honeypot_id)) {
+                // Check for existing token in session.
+                // TODO: Check for keys existing before looking up token values
+                $session_token = $_SESSION[self::SESSION_VAR][$form_id];
+            } else {
+                // Look for honeypot id in table
+                $sql = $wpdb->prepare("SELECT id, honeypot_token FROM `${table_name}` WHERE form_id = %s AND honeypot_id = %s",
+                    $form_id, $honeypot_id);
+                $honeypot_row = $wpdb->get_row($sql, OBJECT);
+                if (empty($honeypot_row)) {
+                    $session_token = null;
+                } else {
+                    $honeypot_row_id = $honeypot_row->id;
+                    $session_token = $honeypot_row->honeypot_token;
+                }
+            }
 
             if (is_null($session_token)) {
                 // Something happened where this token was never created but the honeypot system wasn't disabled for the form.
@@ -187,8 +318,13 @@ class NIFormsHoneypot
                     'Failed honeypot check; token was never generated.  Initialized "silent failure" process');
                 return NIForms::PREPROCESS_RETURN_SILENT_FAILURE;
             } else if ($form_token == $session_token) {
-                // Remove token from session.  This will prevent the user being able to "double-submit" without reloading the page.ss
-                unset($_SESSION[self::SESSION_VAR][$form_id]);
+                if (empty($honeypot_id)) {
+                    // Remove token from session.  This will prevent the user being able to "double-submit" without reloading the page.ss
+                    unset($_SESSION[self::SESSION_VAR][$form_id]);
+                } else {
+
+                    $wpdb->delete($table_name, array('id' => $honeypot_row_id));
+                }
                 return true;
             } else {
                 $logger->log(\NIForms\Psr\Log\LogLevel::ERROR,
@@ -202,4 +338,5 @@ class NIFormsHoneypot
     }
 }
 
+NIFormsHoneypot::setupCron();
 add_action('plugins_loaded', array('NIFormsHoneypot', 'register'));
