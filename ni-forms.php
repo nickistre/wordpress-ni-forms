@@ -131,6 +131,13 @@ class NIForms
     static private $default_failure_message = 'Form submit failed.';
 
     /**
+     * Used to store the current plugin version (and not need to analyze the page constantly
+     *
+     * @var string
+     */
+    static private $plugin_version = null;
+
+    /**
      * NIForm constructor.
      *
      * Sets up shortcode, ajax management, and any other configuration needed
@@ -201,13 +208,31 @@ class NIForms
     public function enqueue_scripts()
     {
         // Setup scripts
-        wp_register_script('jquery-ajaxform', plugins_url('js/vendor/jquery.form.min.js', __FILE__), array('jquery'));
-        wp_register_script('jquery-blockui', plugins_url('js/vendor/jquery.blockUI.js', __FILE__), array('jquery'));
+        wp_register_script('jquery-ajaxform', plugins_url('js/vendor/jquery.form.min.js', __FILE__), array('jquery'),
+            self::getVersion());
+        wp_register_script('jquery-blockui', plugins_url('js/vendor/jquery.blockUI.js', __FILE__), array('jquery'),
+            self::getVersion());
         wp_register_script('ni-forms', plugins_url('js/form.js', __FILE__),
-            array('jquery', 'jquery-ui-dialog', 'jquery-ajaxform', 'jquery-blockui'));
+            array('jquery', 'jquery-ui-dialog', 'jquery-ajaxform', 'jquery-blockui'), self::getVersion());
 
         // Setup styles
-        wp_register_style('ni-forms', plugins_url('css/form.css', __FILE__), array('wp-jquery-ui-dialog'));
+        wp_register_style('ni-forms', plugins_url('css/form.css', __FILE__), array('wp-jquery-ui-dialog'),
+            self::getVersion());
+    }
+
+    /**
+     * Gets the version of this plugin
+     *
+     * @return mixed
+     */
+    static public function getVersion()
+    {
+        if (empty(self::$plugin_version)) {
+            require_once ABSPATH . '/wp-admin/includes/plugin.php';
+            $plugin_data = get_plugin_data(__FILE__);
+            self::$plugin_version = $plugin_data['Version'];
+        }
+        return self::$plugin_version;
     }
 
     /**

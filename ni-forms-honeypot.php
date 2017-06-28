@@ -30,6 +30,12 @@ class NIFormsHoneypot
 
     const SCHEDULE_HOOK_NAME = 'niform_honeypot_cleartable';
     /**
+     * Used to store the current plugin version (and not need to analyze the page constantly
+     *
+     * @var string
+     */
+    static private $plugin_version = null;
+    /**
      * @var null|array
      *
      * Holds the current post status.  This can be changed by handlers so that it changes the process_form input.
@@ -246,7 +252,23 @@ EOT;
     public function enqueue_scripts()
     {
         // Setup scripts
-        wp_register_script('ni-forms-honeypot', plugins_url('js/form-honeypot.js', __FILE__), array('jquery'));
+        wp_register_script('ni-forms-honeypot', plugins_url('js/form-honeypot.js', __FILE__), array('jquery'),
+            self::getVersion());
+    }
+
+    /**
+     * Gets the version of this plugin
+     *
+     * @return mixed
+     */
+    static public function getVersion()
+    {
+        if (empty(self::$plugin_version)) {
+            require_once ABSPATH . '/wp-admin/includes/plugin.php';
+            $plugin_data = get_plugin_data(__FILE__);
+            self::$plugin_version = $plugin_data['Version'];
+        }
+        return self::$plugin_version;
     }
 
     public function preformHandler(\NIForms\Form $form, \NIForms\Logger &$logger)
