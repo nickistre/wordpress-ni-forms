@@ -33,7 +33,7 @@ NIForm.generateGuid = function () {
  * @constructor
  */
 NIForm.Honeypot = function (formId, tokenUrl, fieldName, honeypotIdFieldName) {
-    honeypotId = NIForm.generateGuid();
+    var honeypotId = NIForm.generateGuid();
 
     // Base submit data to send to honeypot token generator
     var submitData = {
