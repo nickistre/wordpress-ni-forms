@@ -20,8 +20,6 @@ class NIFormsHoneypot
 
     const ID_FIELD_NAME = '_ni-form-honeypot-id';
 
-    const SESSION_VAR = 'ni-forms-honeypot';
-
     const OPTIONS_DB_VERSION = 'ni_forms_db_version';
 
     const DB_VERSION = '1.1';
@@ -176,33 +174,32 @@ EOT;
     {
         $this->dbInstall();
 
+        if (!$this->hasPostKey('formId')) {
+            trigger_error('"formId" parameter is required', E_USER_ERROR);
+        }
+
+        if (!$this->hasPostKey('honeypotId')) {
+            trigger_error('"honeypotId" parameter is required', E_USER_ERROR);
+        }
+
         $form_id = $this->getPostValue('formId');
-        // The following is sent back in case cookies are not enabled on the client browser
         $honeypot_id = $this->getPostValue('honeypotId');
 
         // Generate a new token
         $token = md5(uniqid(mt_rand(), true));
 
-        if (empty($honeypot_id)) {
-            // Save token in Session in relation to formId given.
-            if (!is_array($_SESSION[self::SESSION_VAR])) {
-                $_SESSION[self::SESSION_VAR] = array();
-            }
 
-            $_SESSION[self::SESSION_VAR][$form_id] = $token;
-        } else {
-            // Store honeypot id and token into database table.
-            global $wpdb;
+        // Store honeypot id and token into database table.
+        global $wpdb;
 
-            $table_name = $this->getTableName(self::DB_TABLE_NAME);
-            $insert_array = array(
-                'form_id' => $form_id,
-                'honeypot_id' => $honeypot_id,
-                'honeypot_token' => $token
-            );
+        $table_name = $this->getTableName(self::DB_TABLE_NAME);
+        $insert_array = array(
+            'form_id' => $form_id,
+            'honeypot_id' => $honeypot_id,
+            'honeypot_token' => $token
+        );
 
-            $wpdb->insert($table_name, $insert_array);
-        }
+        $wpdb->insert($table_name, $insert_array);
 
         $return = array(
             'token' => $token
@@ -210,16 +207,6 @@ EOT;
 
         echo wp_json_encode($return);
         wp_die();
-    }
-
-    public function getPostValue($key)
-    {
-        if ($this->hasPostKey($key)) {
-            $post = $this->getPost();
-            return $post[$key];
-        } else {
-            return null;
-        }
     }
 
     public function hasPostKey($key)
@@ -247,6 +234,16 @@ EOT;
         }
 
         return $this->current_post;
+    }
+
+    public function getPostValue($key)
+    {
+        if ($this->hasPostKey($key)) {
+            $post = $this->getPost();
+            return $post[$key];
+        } else {
+            return null;
+        }
     }
 
     public function enqueue_scripts()
@@ -317,29 +314,16 @@ EOT;
             $form_token = $form_submit->Post()->getValue(self::FIELD_NAME);
             $honeypot_id = $form_submit->Post()->getValue(self::ID_FIELD_NAME, null);
 
-            if (empty($honeypot_id)) {
-                // Check for existing token in session.
-                // TODO: Check for keys existing before looking up token values
-                if (is_array($_SESSION)
-                    && array_key_exists(self::SESSION_VAR, $_SESSION)
-                    && is_array($_SESSION[self::SESSION_VAR])
-                    && array_key_exists($form_id, $_SESSION[self::SESSION_VAR])
-                ) {
-                    $session_token = $_SESSION[self::SESSION_VAR][$form_id];
-                } else {
-                    $session_token = null;
-                }
+
+            // Look for honeypot id in table
+            $sql = $wpdb->prepare("SELECT id, honeypot_token FROM `${table_name}` WHERE form_id = %s AND honeypot_id = %s",
+                $form_id, $honeypot_id);
+            $honeypot_row = $wpdb->get_row($sql, OBJECT);
+            if (empty($honeypot_row)) {
+                $session_token = null;
             } else {
-                // Look for honeypot id in table
-                $sql = $wpdb->prepare("SELECT id, honeypot_token FROM `${table_name}` WHERE form_id = %s AND honeypot_id = %s",
-                    $form_id, $honeypot_id);
-                $honeypot_row = $wpdb->get_row($sql, OBJECT);
-                if (empty($honeypot_row)) {
-                    $session_token = null;
-                } else {
-                    $honeypot_row_id = $honeypot_row->id;
-                    $session_token = $honeypot_row->honeypot_token;
-                }
+                $honeypot_row_id = $honeypot_row->id;
+                $session_token = $honeypot_row->honeypot_token;
             }
 
             if (is_null($session_token)) {
@@ -348,13 +332,7 @@ EOT;
                     'Failed honeypot check; token was never generated.  Initialized "silent failure" process');
                 return NIForms::PREPROCESS_RETURN_SILENT_FAILURE;
             } else if ($form_token == $session_token) {
-                if (empty($honeypot_id)) {
-                    // Remove token from session.  This will prevent the user being able to "double-submit" without reloading the page.ss
-                    unset($_SESSION[self::SESSION_VAR][$form_id]);
-                } else {
-
-                    $wpdb->delete($table_name, array('id' => $honeypot_row_id));
-                }
+                $wpdb->delete($table_name, array('id' => $honeypot_row_id));
                 return true;
             } else {
                 $logger->log(\NIForms\Psr\Log\LogLevel::ERROR,
