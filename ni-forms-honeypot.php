@@ -3,7 +3,7 @@
 /**
  * Plugin Name: NI Forms - Honeypot
  * Description: Addon for NI Forms system that adds a simple anti-bot honeypot system to forms.
- * Version: 0.2.3
+ * Version: 0.2.4
  * Author: Nicholas Istre
  * GitHub Plugin URI: https://github.com/nickistre/wordpress-ni-forms
  *
@@ -146,8 +146,8 @@ EOT;
      */
     static public function getHoneyPotDataMaxAge()
     {
-        // Return a max age of 1 day for now.
-        return 24 * 60 * 60;
+        // Return a max age of 1 week for now.
+        return 7 * 24 * 60 * 60;
     }
 
     /**
