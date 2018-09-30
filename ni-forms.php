@@ -475,7 +475,7 @@ EOT;
             assert(is_callable($handler));
 
             $logger->pushHandler($name);
-            $return = call_user_func($handler, $form, $logger);
+            $return = call_user_func_array($handler, array($form, &$logger));
 
             if ($return instanceof $form) {
                 $form = $return;
@@ -654,7 +654,7 @@ EOT;
             assert(is_callable($handler));
 
             $logger->pushHandler($name);
-            $return = call_user_func($handler, $form_submit, $form, $logger);
+            $return = call_user_func_array($handler, array($form_submit, $form, &$logger));
 
             if ($return !== true) {
                 if ($return === false) {
@@ -725,7 +725,7 @@ EOT;
             assert(is_callable($handler));
 
             $logger->pushHandler($name);
-            $return = call_user_func($handler, $form_submit, $form, $preprocess_result, $process_message, $logger);
+            $return = call_user_func_array($handler, array($form_submit, $form, $preprocess_result, $process_message, &$logger));
             // We're not doing anything with the return value, actually...
 
             $logger->popHandler();
