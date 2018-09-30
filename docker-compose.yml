@@ -1,0 +1,37 @@
+version: '3.3'
+
+services:
+    db:
+      image: mysql:5.7
+      volumes:
+        - db_data:/var/lib/mysql
+      restart: always
+      environment:
+        MYSQL_ROOT_PASSWORD: somewordpress
+        MYSQL_DATABASE: wordpress
+        MYSQL_USER: wordpress
+        MYSQL_PASSWORD: wordpress
+
+    wordpress:
+      depends_on:
+        - db
+      build: .
+      ports:
+        - "8080:80"
+      restart: always
+      volumes:
+        - ./:/var/www/wordpress-ni-forms
+        - ./docker/data/html:/var/www/html
+      environment:
+        WORDPRESS_DB_HOST: db:3306
+        WORDPRESS_DB_USER: wordpress
+        WORDPRESS_DB_PASSWORD: wordpress
+        WORDPRESS_DB_NAME: wordpress
+        WORDPRESS_URL: http://localhost:8080
+        WORDPRESS_TITLE: Local Test
+        WORDPRESS_ADMIN_USER: admin
+        WORDPRESS_ADMIN_PASSWORD: admin
+        WORDPRESS_ADMIN_EMAIL: nickistre@gmail.com
+
+volumes:
+  db_data:

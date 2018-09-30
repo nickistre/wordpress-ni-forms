@@ -1,0 +1,5 @@
+This is a test form
+[ni-form processor="null" success-message="<h2>Thank you for you submission!</h2>"]
+Enter something: <input type="text" name="text" required>
+<input type="submit" name="submit" value="Submit">
+[/ni-form]
