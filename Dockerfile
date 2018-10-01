@@ -15,6 +15,11 @@ RUN php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
 RUN composer global require phpunit/phpunit:5.*
 RUN ln -s /root/.composer/vendor/bin/phpunit /usr/local/bin/
 
+# Needed for install-wp-tests
+RUN apt-get update && apt-get install -y \
+    subversion
+    mysql-client
+
 COPY docker/custom-entrypoint.sh /usr/local/bin/
 
 ENTRYPOINT ["custom-entrypoint.sh"]
