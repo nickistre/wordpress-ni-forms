@@ -17,8 +17,9 @@ RUN ln -s /root/.composer/vendor/bin/phpunit /usr/local/bin/
 
 # Needed for install-wp-tests
 RUN apt-get update && apt-get install -y \
-    subversion
-    mysql-client
+    subversion \
+    mysql-client \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY docker/custom-entrypoint.sh /usr/local/bin/
 
