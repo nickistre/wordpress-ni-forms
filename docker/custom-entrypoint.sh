@@ -6,7 +6,7 @@ if [ ! -L /var/www/html/wp-content/plugins/wordpress-ni-forms ]; then
     ln -s /var/www/wordpress-ni-forms /var/www/html/wp-content/plugins/wordpress-ni-forms
 fi
 
-if ! $(wp core is-installed); then
+if ! $(wp core is-installed --allow-root); then
     # Setup site from environment
     wp core install --allow-root \
         --url="$WORDPRESS_URL" \
