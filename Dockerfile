@@ -10,6 +10,9 @@ COPY ./docker/xdebug_settiings.ini  /usr/local/etc/php/conf.d/
 ADD https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar /usr/local/bin/wp
 RUN chmod +x /usr/local/bin/wp
 
+ADD https://getcomposer.org/installer /tmp/composer-setup.php
+RUN php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+
 COPY docker/custom-entrypoint.sh /usr/local/bin/
 
 ENTRYPOINT ["custom-entrypoint.sh"]
