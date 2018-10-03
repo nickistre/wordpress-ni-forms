@@ -29,4 +29,8 @@ if ! $(wp core is-installed --allow-root); then
         ./wp-content/plugins/wordpress-ni-forms/docker/test-form
 fi
 
+# Setup phpunit library and phpunit command
+composer global require phpunit/phpunit:5.*
+ln -s ~/.composer/vendor/bin/phpunit /usr/local/bin/phpunit
+
 exec "$@"
