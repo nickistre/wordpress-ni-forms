@@ -22,6 +22,8 @@ services:
       volumes:
         - ./:/var/www/wordpress-ni-forms
         - ./docker/data/html:/var/www/html
+        - ./docker/data/rootComposer:/root/.composer
+        - ./docker/data/tmp:/root/tmp
       environment:
         WORDPRESS_DB_HOST: db:3306
         WORDPRESS_DB_USER: wordpress
@@ -32,6 +34,7 @@ services:
         WORDPRESS_ADMIN_USER: admin
         WORDPRESS_ADMIN_PASSWORD: admin
         WORDPRESS_ADMIN_EMAIL: nickistre@gmail.com
+        TMPDIR: /root/tmp
 
 volumes:
   db_data:
