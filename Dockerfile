@@ -16,7 +16,7 @@ RUN php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
 # Needed for install-wp-tests
 RUN apt-get update && apt-get install -y \
     subversion \
-    mysql-client \
+    mariadb-client \
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/custom-entrypoint.sh /usr/local/bin/
